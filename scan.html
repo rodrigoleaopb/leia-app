@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     h.addEventListener('mousedown',e=>{e.preventDefault();on=true;});
     h.addEventListener('touchstart',e=>{e.preventDefault();on=true;},{passive:false});
     document.addEventListener('mousemove',e=>mv(e.clientX,e.clientY));
-    document.addEventListener('touchmove',e=>{e.preventDefault();mv(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+    document.addEventListener('touchmove',e=>{if(!on)return;e.preventDefault();mv(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
     document.addEventListener('mouseup',()=>{on=false;});
     document.addEventListener('touchend',()=>{on=false;});
   });
