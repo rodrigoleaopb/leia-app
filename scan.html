@@ -248,12 +248,13 @@ async function reconhecer(){
     cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
 
     // ── 4. Amostrar bolhas
-    const PX=DST_W/210;            // 5 px/mm
+    // Bolhas têm letras impressas (≈ 20-25% de fill mesmo em branco).
+    // Critério duplo: fill absoluto ≥ 0.42 E dominância ≥ 1.8× sobre a 2ª maior.
+    const PX=DST_W/210;             // 5 px/mm
     const R=Math.round(4.6*PX*.72); // raio de amostra ≈ 72% do raio da bolha
     const det=new Array(21).fill(null);
     for(let q=1;q<=20;q++){
-      let best=-1, bestLt=null;
-      BUBBLES_MM[q-1].forEach((bub,j)=>{
+      const ratios=BUBBLES_MM[q-1].map(bub=>{
         const cx=Math.round(bub[0]*PX), cy=Math.round(bub[1]*PX);
         let fill=0,tot=0;
         for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
@@ -263,10 +264,13 @@ async function reconhecer(){
           tot++;
           if(thr.data[py*thr.cols+px]>128) fill++;
         }
-        const ratio=tot>0?fill/tot:0;
-        if(ratio>best){best=ratio;bestLt='ABCD'[j];}
+        return tot>0?fill/tot:0;
       });
-      det[q]=best>0.20?bestLt:null;
+      const maxR=Math.max(...ratios);
+      const maxI=ratios.indexOf(maxR);
+      const sec=Math.max(...ratios.filter((_,i)=>i!==maxI));
+      // Só aceita se fill substancial E claramente dominante sobre as demais
+      if(maxR>=0.42 && (sec<0.01||maxR/sec>=1.8)) det[q]='ABCD'[maxI];
     }
 
     sPts.delete();dPts.delete();M.delete();src.delete();warped.delete();gray.delete();thr.delete();
