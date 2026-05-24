@@ -1,6 +1,6 @@
 # LEIA! — Webapp de Correção Diagnóstica
 
-**Levantamento Integrado de Avaliação em Leitura · v0-alpha**
+**Levantamento Integrado de Avaliação em Leitura · v1-alpha**
 
 Aplicativo web de correção e diagnóstico do instrumento LEIA!, desenvolvido para uso em celular diretamente pelo professor, sem instalação e sem servidor.
 

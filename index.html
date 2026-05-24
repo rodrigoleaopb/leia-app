@@ -143,7 +143,7 @@ body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; background: va
 
 <div class="header">
   <div class="header-logo">LEIA!</div>
-  <div class="header-sub">Correção Diagnóstica · v0-alpha</div>
+  <div class="header-sub">Correção Diagnóstica · v1-alpha</div>
 </div>
 
 <!-- ═══════════════════ TELA 1 — IDENTIFICAÇÃO ═══════════════════ -->
@@ -876,7 +876,7 @@ function gerarFicha() {
     a.data   && fmtData(a.data),
     a.escola
   ].filter(Boolean).join(' · ');
-  document.getElementById('f-meta').textContent = meta || 'LEIA! v0-alpha';
+  document.getElementById('f-meta').textContent = meta || 'LEIA! v1-alpha';
 
   // Perfil
   const pd = PERFIS[perfil];
@@ -993,7 +993,7 @@ function exportarPDF() {
   // ── Cabeçalho
   setFill(cNavy); doc.rect(0, 0, 210, 24, 'F');
   txt('LEIA! — Ficha Diagnóstica Individual', L, 10, { bold:true, sz:14, c:cWhite });
-  txt('Levantamento Integrado de Avaliação em Leitura · v0-alpha', L, 17, { sz:8.5, c:cLblue });
+  txt('Levantamento Integrado de Avaliação em Leitura · v1-alpha', L, 17, { sz:8.5, c:cLblue });
   y = 30;
 
   // ── Identificação
@@ -1001,7 +1001,7 @@ function exportarPDF() {
   doc.roundedRect(L, y, W, 20, 2, 2, 'FD');
   txt(a.nome || 'Aluno não identificado', L+4, y+8, { bold:true, sz:13, c:cNavy });
   const meta = [a.turma && 'Turma '+a.turma, a.num && 'Nº '+a.num, a.data && fmtData(a.data), a.escola].filter(Boolean).join('  ·  ');
-  txt(meta || 'LEIA! v0-alpha', L+4, y+15, { sz:8.5, c:cGray });
+  txt(meta || 'LEIA! v1-alpha', L+4, y+15, { sz:8.5, c:cGray });
   y += 26;
 
   // ── Subscores — cabeçalho

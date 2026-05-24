@@ -56,7 +56,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--fblue);min-
 
 <div class="app-header">
   <h1>LEIA! — Leitura de Folha</h1>
-  <p>Levantamento Integrado de Avaliação em Leitura · Escaneamento · v0-alpha</p>
+  <p>Levantamento Integrado de Avaliação em Leitura · Escaneamento · v1-alpha</p>
 </div>
 
 <!-- Captura -->
@@ -434,12 +434,12 @@ function exportarPDF(){
   }
   sF(cN);doc.rect(0,0,210,24,'F');
   txt('LEIA! — Ficha Diagnóstica Individual',L,10,{bold:true,sz:14,c:cWh});
-  txt('Levantamento Integrado de Avaliação em Leitura · v0-alpha',L,17,{sz:8.5,c:cLb});
+  txt('Levantamento Integrado de Avaliação em Leitura · v1-alpha',L,17,{sz:8.5,c:cLb});
   y=30;
   sF(cFb);sD(cLb);doc.setLineWidth(.5);doc.roundedRect(L,y,W,20,2,2,'FD');
   txt(a.nome||'Aluno não identificado',L+4,y+8,{bold:true,sz:13,c:cN});
   const meta=[a.turma&&'Turma '+a.turma,a.num&&'Nº '+a.num,a.data&&fmtData(a.data)].filter(Boolean).join('  ·  ');
-  txt(meta||'LEIA! v0-alpha',L+4,y+15,{sz:8.5,c:cGr});
+  txt(meta||'LEIA! v1-alpha',L+4,y+15,{sz:8.5,c:cGr});
   y+=26;
   const procs=['P0','P1','P2','P3','P4'],bW=W/5;
   sF(cN);doc.rect(L,y,W,7,'F');
