@@ -19,9 +19,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--fblue);min-
 .btn{display:block;width:100%;padding:13px;margin-top:10px;background:var(--navy);color:#fff;border:none;border-radius:7px;font-size:.95rem;font-weight:700;cursor:pointer;text-align:center}
 .btn:active{opacity:.8}
 .btn.sec{background:#fff;color:var(--navy);border:1.5px solid var(--lblue)}
-.canvas-wrap{position:relative;background:#111;border-radius:8px;overflow:hidden;width:100%;touch-action:none}
-.canvas-wrap canvas{display:block;width:100%}
-.handle{position:absolute;width:30px;height:30px;background:#fbbf24;border:3px solid #fff;border-radius:50%;transform:translate(-50%,-50%);touch-action:none;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:10}
+.photo-thumb{width:100%;max-height:220px;object-fit:contain;border-radius:8px;background:#111;display:block;margin-bottom:4px}
+.det-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;font-size:.75rem;font-weight:700;margin-bottom:10px}
+.det-ok{background:#dcfce7;color:#15803d}
+.det-warn{background:#fef3c7;color:#92400e}
 .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px}
 .spinner{width:52px;height:52px;border:5px solid var(--lblue);border-top-color:var(--navy);border-radius:50%;animation:spin .75s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -59,28 +60,15 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--fblue);min-
 <!-- Captura -->
 <div id="s-cap" class="screen active">
   <div class="card">
-    <h3>1. Fotografe a folha de respostas</h3>
-    <p>Coloque a folha sobre superfície plana com boa iluminação. Use câmera traseira.</p>
+    <h3>Como fotografar</h3>
+    <p>Coloque a folha sobre superfície plana. Fotografe de cima, com a folha preenchendo o enquadramento e boa iluminação uniforme.</p>
   </div>
   <input type="file" id="inp-file" accept="image/*" capture="environment" style="display:none">
   <button class="btn" onclick="document.getElementById('inp-file').click()">📷 Fotografar / Escolher imagem</button>
-  <div id="adj-wrap" style="display:none;margin-top:14px">
-    <div class="card">
-      <h3>2. Ajuste os marcadores de canto</h3>
-      <p>Arraste os pontos amarelos para os 4 quadrados pretos nos cantos da folha.</p>
-    </div>
-    <div class="canvas-wrap" id="canvas-wrap">
-      <canvas id="c-img"></canvas>
-      <canvas id="c-ov" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>
-      <div class="handle" id="h0" data-i="0"></div>
-      <div class="handle" id="h1" data-i="1"></div>
-      <div class="handle" id="h2" data-i="2"></div>
-      <div class="handle" id="h3" data-i="3"></div>
-    </div>
-    <p style="font-size:.7rem;color:var(--gray);margin-top:6px;text-align:center">
-      Amarelo TL = canto sup-esq · TR = sup-dir · BR = inf-dir · BL = inf-esq
-    </p>
-    <button class="btn" id="btn-proc" onclick="processarImagem()">Processar folha →</button>
+  <div id="prev-wrap" style="display:none;margin-top:14px">
+    <img id="prev-img" class="photo-thumb" alt="prévia">
+    <button class="btn" onclick="reconhecer()">Reconhecer folha →</button>
+    <button class="btn sec" onclick="document.getElementById('inp-file').click()">Trocar foto</button>
   </div>
 </div>
 
@@ -88,7 +76,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--fblue);min-
 <div id="s-proc" class="screen">
   <div class="loading">
     <div class="spinner"></div>
-    <p>Processando imagem…</p>
+    <p>Reconhecendo…</p>
     <small id="proc-msg">Aguarde</small>
   </div>
 </div>
@@ -97,7 +85,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--fblue);min-
 <div id="s-conf" class="screen">
   <div class="card">
     <h3>Confirme as respostas detectadas</h3>
-    <p>Toque para corrigir qualquer resposta. Sem seleção = questão não lida.</p>
+    <div id="det-status"></div>
+    <p>Toque em qualquer bolha para corrigir. Toque novamente na selecionada para desmarcar.</p>
   </div>
   <div id="q-grid"></div>
   <button class="btn" onclick="tela('s-id')">Confirmar e identificar aluno →</button>
@@ -182,197 +171,106 @@ const PERFIS = {
   D:{titulo:'Perfil D — Compreensão funcional, em desenvolvimento',desc:'Localiza informações explícitas e faz inferências diretas — Benchmark Intermediário PIRLS (475). P3 distingue dois patamares dentro do perfil.',prio:'Diferenciada: P3 ≥ 2 → textos mais longos, síntese, ponto de vista do autor. P3 ≤ 1 → sumarização e ideia principal antes de avançar para P4.'}
 };
 
-// ── Posições das bolhas (mm, origem canto sup-esq da folha A4) ─────────────────
-// Col1 q1-10: x_base=45.6mm · Col2 q11-20: x_base=140.6mm
-// Letras A-D: x_base + j*12.4mm · Linhas: y = 78.2 + row*10.4mm
+// ── Posições das bolhas em mm (origem canto sup-esq da folha A4 210×297mm) ────
+// Col1 q1-10  : x = 45.6 + j*12.4  (j=0..3 → A..D)
+// Col2 q11-20 : x = 140.6 + j*12.4
+// Linhas      : y = 78.2 + row*10.4
 const BUBBLES_MM = [];
-for (let q=1;q<=20;q++){
+for(let q=1;q<=20;q++){
   const col=q<=10?0:1, row=q<=10?q-1:q-11;
   const bx=col===0?45.6:140.6, y=78.2+row*10.4;
   BUBBLES_MM.push([0,1,2,3].map(j=>[bx+j*12.4,y]));
 }
 
 // ── Estado ────────────────────────────────────────────────────────────────────
-let foto      = null;
-let corners   = [{x:.064,y:.045},{x:.936,y:.045},{x:.936,y:.955},{x:.064,y:.955}];
+let foto      = null;     // HTMLImageElement
 let respostas = new Array(21).fill(null);
 let aluno     = {};
 
-// ── Navegação ─────────────────────────────────────────────────────────────────
+// ── Utils ─────────────────────────────────────────────────────────────────────
 function tela(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 function pad(n){return String(n).padStart(2,'0');}
 function fmtData(s){if(!s)return'';const[y,m,d]=s.split('-');return d+'/'+m+'/'+y;}
 function tick(){return new Promise(r=>setTimeout(r,20));}
 function setMsg(t){document.getElementById('proc-msg').textContent=t;}
-
-// ── OpenCV pronto? ────────────────────────────────────────────────────────────
-function cvIsReady(){
-  return typeof cv!=='undefined' && typeof cv.Mat!=='undefined' && typeof cv.imread==='function';
-}
-async function waitCV(maxMs=20000){
+function cvOk(){return typeof cv!=='undefined'&&typeof cv.Mat!=='undefined'&&typeof cv.imread==='function';}
+async function waitCV(ms=20000){
   const t=Date.now();
-  while(!cvIsReady()){
-    if(Date.now()-t>maxMs) throw new Error('OpenCV não carregou. Verifique a conexão.');
-    await new Promise(r=>setTimeout(r,150));
-  }
+  while(!cvOk()){if(Date.now()-t>ms)throw new Error('OpenCV não carregou. Verifique a conexão.');await new Promise(r=>setTimeout(r,150));}
 }
 
-// ── Carregar foto ─────────────────────────────────────────────────────────────
+// ── Seleção de foto ───────────────────────────────────────────────────────────
 document.getElementById('inp-file').addEventListener('change',function(e){
   const f=e.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=ev=>carregarFoto(ev.target.result);
+  rd.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      foto=img;
+      document.getElementById('prev-img').src=ev.target.result;
+      document.getElementById('prev-wrap').style.display='block';
+    };
+    img.src=ev.target.result;
+  };
   rd.readAsDataURL(f);
 });
 
-function carregarFoto(src){
-  const img=new Image();
-  img.onload=()=>{
-    foto=img;
-    const cImg=document.getElementById('c-img');
-    const cOv=document.getElementById('c-ov');
-    cImg.width=img.width; cImg.height=img.height;
-    cImg.getContext('2d').drawImage(img,0,0);
-    cOv.width=img.width; cOv.height=img.height;
-    document.getElementById('adj-wrap').style.display='block';
-    // Handles nos cantos esperados dos marcadores (13.5mm / 210mm)
-    const mx=13.5/210, my=13.5/297;
-    corners=[{x:mx,y:my},{x:1-mx,y:my},{x:1-mx,y:1-my},{x:mx,y:1-my}];
-    atualizarHandles();
-    if(cvIsReady()) setTimeout(autoDetect,80);
-    else waitCV(5000).then(()=>setTimeout(autoDetect,80)).catch(()=>{});
-  };
-  img.src=src;
-}
-
-// ── Handles arrastar ──────────────────────────────────────────────────────────
-function atualizarHandles(){
-  ['h0','h1','h2','h3'].forEach((id,i)=>{
-    const h=document.getElementById(id);
-    h.style.left=(corners[i].x*100)+'%';
-    h.style.top=(corners[i].y*100)+'%';
-  });
-  desenharOverlay();
-}
-
-function desenharOverlay(){
-  const cOv=document.getElementById('c-ov');
-  const ctx=cOv.getContext('2d');
-  ctx.clearRect(0,0,cOv.width,cOv.height);
-  ctx.strokeStyle='rgba(251,191,36,.9)';
-  ctx.lineWidth=Math.max(3,cOv.width*.004);
-  ctx.beginPath();
-  [0,1,2,3,0].forEach((ci,i)=>{
-    const x=corners[ci].x*cOv.width, y=corners[ci].y*cOv.height;
-    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-  });
-  ctx.stroke();
-}
-
-document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('f-data').value=new Date().toISOString().split('T')[0];
-  ['h0','h1','h2','h3'].forEach(id=>{
-    const h=document.getElementById(id);
-    const i=parseInt(h.dataset.i);
-    let on=false;
-    const mv=(cx,cy)=>{
-      if(!on) return;
-      const wrap=document.getElementById('canvas-wrap');
-      const r=wrap.getBoundingClientRect();
-      corners[i]={
-        x:Math.max(0,Math.min(1,(cx-r.left)/r.width)),
-        y:Math.max(0,Math.min(1,(cy-r.top)/r.height))
-      };
-      h.style.left=(corners[i].x*100)+'%';
-      h.style.top=(corners[i].y*100)+'%';
-      desenharOverlay();
-    };
-    h.addEventListener('mousedown',e=>{e.preventDefault();on=true;});
-    h.addEventListener('touchstart',e=>{e.preventDefault();on=true;},{passive:false});
-    document.addEventListener('mousemove',e=>mv(e.clientX,e.clientY));
-    document.addEventListener('touchmove',e=>{if(!on)return;e.preventDefault();mv(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
-    document.addEventListener('mouseup',()=>{on=false;});
-    document.addEventListener('touchend',()=>{on=false;});
-  });
-});
-
-// ── Auto-detecção dos marcadores ──────────────────────────────────────────────
-function autoDetect(){
-  try{
-    const SW=800, SH=Math.round(800*foto.height/foto.width);
-    const tmp=document.createElement('canvas');
-    tmp.width=SW; tmp.height=SH;
-    tmp.getContext('2d').drawImage(foto,0,0,SW,SH);
-    const src=cv.imread(tmp), gray=new cv.Mat(), thr=new cv.Mat();
-    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
-    cv.threshold(gray,thr,60,255,cv.THRESH_BINARY_INV);
-    const ctrs=new cv.MatVector(), hier=new cv.Mat();
-    cv.findContours(thr,ctrs,hier,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
-    const expSz=(8/210)*SW, minA=(expSz*.3)**2, maxA=(expSz*3)**2;
-    const cands=[];
-    for(let k=0;k<ctrs.size();k++){
-      const c=ctrs.get(k), rect=cv.boundingRect(c);
-      c.delete();
-      const ar=rect.width/rect.height, area=rect.width*rect.height;
-      if(ar<.4||ar>2.5||area<minA||area>maxA) continue;
-      const cx=(rect.x+rect.width/2)/SW, cy=(rect.y+rect.height/2)/SH;
-      if((cx<.25||cx>.75)&&(cy<.25||cy>.75)) cands.push({cx,cy,area});
-    }
-    src.delete();gray.delete();thr.delete();ctrs.delete();hier.delete();
-    if(cands.length<4) return;
-    const pick=(xf,yf)=>cands.filter(c=>xf(c.cx)&&yf(c.cy)).sort((a,b)=>b.area-a.area)[0];
-    const tl=pick(x=>x<.5,y=>y<.5), tr=pick(x=>x>.5,y=>y<.5);
-    const br=pick(x=>x>.5,y=>y>.5), bl=pick(x=>x<.5,y=>y>.5);
-    if(!tl||!tr||!br||!bl) return;
-    corners=[{x:tl.cx,y:tl.cy},{x:tr.cx,y:tr.cy},{x:br.cx,y:br.cy},{x:bl.cx,y:bl.cy}];
-    atualizarHandles();
-  }catch(e){console.warn('autoDetect:',e);}
-}
-
-// ── Processar imagem ──────────────────────────────────────────────────────────
-async function processarImagem(){
+// ── Reconhecer ────────────────────────────────────────────────────────────────
+async function reconhecer(){
   tela('s-proc'); await tick();
   try{
     setMsg('Aguardando OpenCV…'); await tick();
     await waitCV();
+
+    // ── 1. Detectar marcadores de canto
+    setMsg('Localizando marcadores…'); await tick();
+    const {corners, found} = detectarCantos();
+
+    // ── 2. Perspectiva → 1050×1485px (5px/mm, A4)
     setMsg('Corrigindo perspectiva…'); await tick();
+    const DST_W=1050, DST_H=1485;
     const W=foto.width, H=foto.height;
     const sc=document.createElement('canvas');
     sc.width=W; sc.height=H;
     sc.getContext('2d').drawImage(foto,0,0);
-    const DST_W=1050, DST_H=1485;
     const sPts=cv.matFromArray(4,1,cv.CV_32FC2,corners.flatMap(c=>[c.x*W,c.y*H]));
     const dPts=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,DST_W,0,DST_W,DST_H,0,DST_H]);
     const M=cv.getPerspectiveTransform(sPts,dPts);
     const src=cv.imread(sc), warped=new cv.Mat();
     cv.warpPerspective(src,warped,M,new cv.Size(DST_W,DST_H));
+
+    // ── 3. Limiar Otsu sobre imagem corrigida
     setMsg('Detectando respostas…'); await tick();
     const gray=new cv.Mat(), thr=new cv.Mat();
     cv.cvtColor(warped,gray,cv.COLOR_RGBA2GRAY);
     cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
-    const PX=DST_W/210; // 5px/mm
-    const R=Math.round(4.6*PX*.72); // amostra 72% do raio da bolha
+
+    // ── 4. Amostrar bolhas
+    const PX=DST_W/210;            // 5 px/mm
+    const R=Math.round(4.6*PX*.72); // raio de amostra ≈ 72% do raio da bolha
     const det=new Array(21).fill(null);
     for(let q=1;q<=20;q++){
       let best=-1, bestLt=null;
       BUBBLES_MM[q-1].forEach((bub,j)=>{
         const cx=Math.round(bub[0]*PX), cy=Math.round(bub[1]*PX);
-        let fill=0,total=0;
+        let fill=0,tot=0;
         for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
           if(dx*dx+dy*dy>R*R) continue;
           const px=cx+dx, py=cy+dy;
           if(px<0||px>=DST_W||py<0||py>=DST_H) continue;
-          total++;
+          tot++;
           if(thr.data[py*thr.cols+px]>128) fill++;
         }
-        const ratio=total>0?fill/total:0;
+        const ratio=tot>0?fill/tot:0;
         if(ratio>best){best=ratio;bestLt='ABCD'[j];}
       });
       det[q]=best>0.20?bestLt:null;
     }
+
     sPts.delete();dPts.delete();M.delete();src.delete();warped.delete();gray.delete();thr.delete();
+
     respostas=det;
-    construirGrid();
+    construirGrid(found);
     tela('s-conf');
   }catch(e){
     console.error(e);
@@ -381,8 +279,65 @@ async function processarImagem(){
   }
 }
 
+// ── Detectar marcadores de canto ──────────────────────────────────────────────
+// Retorna {corners:[TL,TR,BR,BL] normalizados 0-1, found: nº de marcadores encontrados}
+function detectarCantos(){
+  const SW=800, SH=Math.round(800*foto.height/foto.width);
+  const tmp=document.createElement('canvas');
+  tmp.width=SW; tmp.height=SH;
+  tmp.getContext('2d').drawImage(foto,0,0,SW,SH);
+
+  const src=cv.imread(tmp), gray=new cv.Mat();
+  const thr=new cv.Mat(), closed=new cv.Mat();
+  cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+  // Otsu para adaptar a diferentes iluminações
+  cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
+  // Fechamento morfológico para preencher buracos internos
+  const kern=cv.Mat.ones(5,5,cv.CV_8U);
+  cv.morphologyEx(thr,closed,cv.MORPH_CLOSE,kern);
+  const ctrs=new cv.MatVector(), hier=new cv.Mat();
+  cv.findContours(closed,ctrs,hier,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+
+  const expSz=(8/210)*SW;   // tamanho esperado do marcador em pixels
+  const minA=(expSz*.2)**2, maxA=(expSz*4.0)**2;
+  const cands=[];
+  for(let k=0;k<ctrs.size();k++){
+    const c=ctrs.get(k), rect=cv.boundingRect(c);
+    c.delete();
+    const ar=rect.width/rect.height, area=rect.width*rect.height;
+    if(ar<.3||ar>3.0||area<minA||area>maxA) continue;
+    const cx=(rect.x+rect.width/2)/SW, cy=(rect.y+rect.height/2)/SH;
+    // Apenas regiões de canto (25% periférico em cada eixo)
+    if((cx<.28||cx>.72)&&(cy<.28||cy>.72)) cands.push({cx,cy,area});
+  }
+  src.delete();gray.delete();thr.delete();closed.delete();kern.delete();ctrs.delete();hier.delete();
+
+  const pick=(xf,yf)=>cands.filter(c=>xf(c.cx)&&yf(c.cy)).sort((a,b)=>b.area-a.area)[0];
+  const tl=pick(x=>x<.5,y=>y<.5), tr=pick(x=>x>.5,y=>y<.5);
+  const br=pick(x=>x>.5,y=>y>.5), bl=pick(x=>x<.5,y=>y>.5);
+  const found=[tl,tr,br,bl].filter(Boolean).length;
+
+  if(found===4){
+    return {
+      corners:[{x:tl.cx,y:tl.cy},{x:tr.cx,y:tr.cy},{x:br.cx,y:br.cy},{x:bl.cx,y:bl.cy}],
+      found:4
+    };
+  }
+  // Fallback: assume que a foto enquadra a folha inteira
+  return {
+    corners:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],
+    found
+  };
+}
+
 // ── Grade de confirmação ──────────────────────────────────────────────────────
-function construirGrid(){
+function construirGrid(found){
+  const ds=document.getElementById('det-status');
+  if(found===4){
+    ds.innerHTML='<span class="det-badge det-ok">✓ 4 marcadores detectados — perspectiva corrigida</span>';
+  } else {
+    ds.innerHTML=`<span class="det-badge det-warn">⚠ ${found} marcador(es) encontrado(s) — enquadramento automático usado. Confira as respostas abaixo.</span>`;
+  }
   const g=document.getElementById('q-grid');
   g.innerHTML='';
   for(let q=1;q<=20;q++){
@@ -413,7 +368,7 @@ function gerarFicha(){
   const sc={P0:0,P1:0,P2:0,P3:0,P4:0};
   let total=0;
   for(let q=1;q<=20;q++) if(respostas[q]===GAB[q]){sc[PROC[q]]++;total++;}
-  const {P0,P1,P2}=sc;
+  const{P0,P1,P2}=sc;
   const perfil=P0<=2?'A':P1<=2?'B':P2<=4?'C':'D';
   const pd=PERFIS[perfil];
   document.getElementById('r-badge').innerHTML=`<div class="perfil-badge p${perfil}">Perfil ${perfil}</div>`;
@@ -443,9 +398,9 @@ function gerarFicha(){
 // ── Exportar PDF ──────────────────────────────────────────────────────────────
 function exportarPDF(){
   if(!window.jspdf){alert('jsPDF ainda não carregou. Aguarde e tente novamente.');return;}
-  const {jsPDF}=window.jspdf;
+  const{jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'mm',format:'a4'});
-  const {aluno:a,sc,total,perfil}=window._leia;
+  const{aluno:a,sc,total,perfil}=window._leia;
   const cN=[30,58,110],cBl=[37,99,168],cLb=[200,216,238],cFb=[240,245,251];
   const cGr=[85,85,85],cWh=[255,255,255],cOk=[22,163,74],cEr=[220,38,38];
   const PC={A:{bg:[254,242,242],bd:[254,202,202],tx:[220,38,38]},B:{bg:[255,247,237],bd:[254,215,170],tx:[234,88,12]},C:{bg:[254,252,232],bd:[253,230,138],tx:[202,138,4]},D:{bg:[240,253,244],bd:[187,247,208],tx:[22,163,74]}};
@@ -456,7 +411,7 @@ function exportarPDF(){
   const sD=a=>doc.setDrawColor(a[0],a[1],a[2]);
   function txt(s,x,yy,o={}){
     doc.setFont('helvetica',o.bold?'bold':'normal');
-    doc.setFontSize(o.sz||9); sC(o.c||cGr);
+    doc.setFontSize(o.sz||9);sC(o.c||cGr);
     o.align?doc.text(s,x,yy,{align:o.align}):doc.text(s,x,yy);
   }
   function cabTbl(){
@@ -468,29 +423,23 @@ function exportarPDF(){
     txt('Diagnóstico do erro',L+64,y+4.8,{bold:true,sz:8,c:cWh});
     y+=7;
   }
-  // Cabeçalho
   sF(cN);doc.rect(0,0,210,24,'F');
   txt('LEIA! — Ficha Diagnóstica Individual',L,10,{bold:true,sz:14,c:cWh});
   txt('Levantamento Integrado de Avaliação em Leitura · v0-alpha',L,17,{sz:8.5,c:cLb});
   y=30;
-  // Identificação
   sF(cFb);sD(cLb);doc.setLineWidth(.5);doc.roundedRect(L,y,W,20,2,2,'FD');
   txt(a.nome||'Aluno não identificado',L+4,y+8,{bold:true,sz:13,c:cN});
   const meta=[a.turma&&'Turma '+a.turma,a.num&&'Nº '+a.num,a.data&&fmtData(a.data)].filter(Boolean).join('  ·  ');
   txt(meta||'LEIA! v0-alpha',L+4,y+15,{sz:8.5,c:cGr});
   y+=26;
-  // Subscores
   const procs=['P0','P1','P2','P3','P4'],bW=W/5;
   sF(cN);doc.rect(L,y,W,7,'F');
   procs.forEach((p,i)=>txt(p,L+i*bW+bW/2,y+5,{bold:true,sz:8,c:cWh,align:'center'}));
-  y+=7;
-  sF(cFb);sD(cLb);doc.rect(L,y,W,12,'FD');
+  y+=7;sF(cFb);sD(cLb);doc.rect(L,y,W,12,'FD');
   procs.forEach((p,i)=>txt(sc[p]+'/'+PMAX[p],L+i*bW+bW/2,y+8,{bold:true,sz:12,c:cN,align:'center'}));
-  y+=12;
-  sF(cN);doc.rect(L,y,W,7,'F');
+  y+=12;sF(cN);doc.rect(L,y,W,7,'F');
   txt('TOTAL  '+total+' / 20',L+W/2,y+5,{bold:true,sz:9,c:cWh,align:'center'});
   y+=12;
-  // Perfil
   const pc=PC[perfil],pd=PERFIS[perfil];
   const prioL=doc.splitTextToSize(pd.prio,W-28);
   sF(pc.bg);sD(pc.bd);doc.setLineWidth(.5);
@@ -501,10 +450,9 @@ function exportarPDF(){
   txt(descL.join('\n'),L+22,y+14,{sz:8,c:cGr});
   txt(prioL.join('\n'),L+22,y+14+descL.length*3.8,{sz:8,c:pc.tx,bold:true});
   y+=28+prioL.length*3.8;
-  // Tabela
   cabTbl();
   for(let q=1;q<=20;q++){
-    const r=respostas[q]||'—', ok=r===GAB[q];
+    const r=respostas[q]||'—',ok=r===GAB[q];
     const diag=!ok&&r!=='—'?(DIAG[q][r]||''):'';
     const dL=diag?doc.splitTextToSize(diag,W-68):[];
     const rH=Math.max(7,dL.length*3.8+4);
@@ -520,11 +468,9 @@ function exportarPDF(){
     if(dL.length) txt(dL.join('\n'),L+64,y+4.5,{sz:7.5,c:[60,40,10]});
     y+=rH;
   }
-  // Rodapé
   const np=doc.internal.getNumberOfPages();
   for(let i=1;i<=np;i++){
-    doc.setPage(i);
-    sD([200,200,200]);doc.setLineWidth(.35);doc.line(L,PH-11,R,PH-11);
+    doc.setPage(i);sD([200,200,200]);doc.setLineWidth(.35);doc.line(L,PH-11,R,PH-11);
     txt('LEIA! · Levantamento Integrado de Avaliação em Leitura',L,PH-7,{sz:7.5,c:cGr});
     txt('página '+i+' de '+np,R,PH-7,{sz:7.5,c:cGr,align:'right'});
   }
@@ -532,15 +478,17 @@ function exportarPDF(){
 }
 
 function novaLeitura(){
-  respostas=new Array(21).fill(null);
-  foto=null;
-  document.getElementById('adj-wrap').style.display='none';
+  respostas=new Array(21).fill(null);foto=null;
+  document.getElementById('prev-wrap').style.display='none';
   document.getElementById('inp-file').value='';
   tela('s-cap');
 }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('f-data').value=new Date().toISOString().split('T')[0];
+});
 </script>
 
-<!-- OpenCV.js carrega por último (8 MB — necessário para escaneamento) -->
 <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
 </body>
 </html>
