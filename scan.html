@@ -1,503 +1,1224 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>LEIA! — Leitura de Folha</title>
-<style>
-:root{--navy:#1e3a6e;--blue:#2563a8;--lblue:#c8d8ee;--fblue:#f0f5fb;--gray:#555}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:var(--fblue);min-height:100svh}
-.app-header{background:var(--navy);color:#fff;padding:12px 16px 10px}
-.app-header h1{font-size:1rem;font-weight:700}
-.app-header p{font-size:.68rem;color:var(--lblue);margin-top:2px}
-.screen{display:none;padding:16px 14px}
-.screen.active{display:block}
-.card{background:#fff;border:1px solid var(--lblue);border-radius:8px;padding:14px;margin-bottom:12px}
-.card h3{color:var(--navy);font-size:.88rem;font-weight:700;margin-bottom:6px}
-.card p{font-size:.78rem;color:var(--gray)}
-.btn{display:block;width:100%;padding:13px;margin-top:10px;background:var(--navy);color:#fff;border:none;border-radius:7px;font-size:.95rem;font-weight:700;cursor:pointer;text-align:center}
-.btn:active{opacity:.8}
-.btn.sec{background:#fff;color:var(--navy);border:1.5px solid var(--lblue)}
-.photo-thumb{width:100%;max-height:220px;object-fit:contain;border-radius:8px;background:#111;display:block;margin-bottom:4px}
-.det-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;font-size:.75rem;font-weight:700;margin-bottom:10px}
-.det-ok{background:#dcfce7;color:#15803d}
-.det-warn{background:#fef3c7;color:#92400e}
-.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px}
-.spinner{width:52px;height:52px;border:5px solid var(--lblue);border-top-color:var(--navy);border-radius:50%;animation:spin .75s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading p{color:var(--navy);font-weight:700;font-size:1rem}
-.loading small{color:var(--gray);font-size:.8rem;text-align:center}
-.q-row{display:flex;align-items:center;padding:7px 0;border-bottom:1px solid var(--fblue)}
-.q-lbl{width:44px;font-weight:700;color:var(--navy);font-size:.85rem}
-.q-proc{width:30px;font-size:.65rem;font-weight:700;color:var(--blue);background:var(--fblue);border-radius:4px;text-align:center;padding:2px 3px;margin-right:8px;flex-shrink:0}
-.q-opts{display:flex;gap:5px;flex:1}
-.q-opt{flex:1;padding:7px 0;text-align:center;border:1.5px solid var(--lblue);border-radius:20px;font-weight:700;color:var(--gray);cursor:pointer;font-size:.8rem;user-select:none}
-.q-opt.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
-.q-row.sem-resp{background:#fff7ed;border-left:3px solid #f97316;padding-left:5px}
-.q-row.sem-resp .q-lbl{color:#c2410c}
-.id-field{margin-bottom:10px}
-.id-field label{display:block;font-size:.72rem;font-weight:700;color:var(--navy);margin-bottom:3px}
-.id-field input{width:100%;padding:10px;border:1.5px solid var(--lblue);border-radius:6px;font-size:.92rem}
-.perfil-badge{display:inline-block;padding:6px 24px;border-radius:20px;font-size:1.5rem;font-weight:900;color:#fff;margin-bottom:6px}
-.pA{background:#dc2626}.pB{background:#ea580c}.pC{background:#ca8a04}.pD{background:#16a34a}
-.score-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
-.score-tbl th{background:var(--navy);color:#fff;padding:5px 8px;text-align:center}
-.score-tbl td{padding:5px 8px;text-align:center;border-bottom:1px solid var(--fblue)}
-.diag-item{margin-bottom:8px;padding:9px;background:var(--fblue);border-radius:6px;border-left:3px solid var(--blue)}
-.diag-hdr{display:flex;gap:8px;align-items:center;margin-bottom:3px}
-.diag-hdr b{color:var(--navy);font-size:.83rem}
-.diag-hdr .err{color:#dc2626;font-size:.8rem}
-.diag-hdr .gab{color:#16a34a;font-size:.8rem}
-.diag-txt{color:var(--gray);font-size:.77rem;line-height:1.4}
-</style>
-</head>
-<body>
-
-<div class="app-header">
-  <h1>LEIA! — Leitura de Folha</h1>
-  <p>Levantamento Integrado de Avaliação em Leitura · Escaneamento · v1-alpha</p>
-</div>
-
-<!-- Captura -->
-<div id="s-cap" class="screen active">
-  <div class="card">
-    <h3>Como fotografar</h3>
-    <p>Coloque a folha sobre superfície plana. Fotografe de cima, com a folha preenchendo o enquadramento e boa iluminação uniforme.</p>
-  </div>
-  <input type="file" id="inp-file" accept="image/*" capture="environment" style="display:none">
-  <button class="btn" onclick="document.getElementById('inp-file').click()">📷 Fotografar / Escolher imagem</button>
-  <div id="prev-wrap" style="display:none;margin-top:14px">
-    <img id="prev-img" class="photo-thumb" alt="prévia">
-    <button class="btn" onclick="reconhecer()">Reconhecer folha →</button>
-    <button class="btn sec" onclick="document.getElementById('inp-file').click()">Trocar foto</button>
-  </div>
-</div>
-
-<!-- Processando -->
-<div id="s-proc" class="screen">
-  <div class="loading">
-    <div class="spinner"></div>
-    <p>Reconhecendo…</p>
-    <small id="proc-msg">Aguarde</small>
-  </div>
-</div>
-
-<!-- Confirmar -->
-<div id="s-conf" class="screen">
-  <div class="card">
-    <h3>Confirme as respostas detectadas</h3>
-    <div id="det-status"></div>
-    <p>Toque em qualquer bolha para corrigir. Toque novamente na selecionada para desmarcar.</p>
-  </div>
-  <div id="q-grid"></div>
-  <button class="btn" onclick="tela('s-id')">Confirmar e identificar aluno →</button>
-</div>
-
-<!-- Identificação -->
-<div id="s-id" class="screen">
-  <div class="card">
-    <h3>Identificação do(a) aluno(a)</h3>
-    <div class="id-field">
-      <label>Nome completo</label>
-      <input type="text" id="f-nome" placeholder="Nome do(a) aluno(a)">
-    </div>
-    <div style="display:flex;gap:10px">
-      <div class="id-field" style="flex:1"><label>Turma</label><input type="text" id="f-turma" placeholder="Ex: 1A"></div>
-      <div class="id-field" style="flex:1"><label>Nº</label><input type="number" id="f-num" placeholder="—"></div>
-    </div>
-    <div class="id-field">
-      <label>Data de aplicação</label>
-      <input type="date" id="f-data">
-    </div>
-  </div>
-  <button class="btn" onclick="gerarFicha()">Ver resultado →</button>
-</div>
-
-<!-- Ficha -->
-<div id="s-ficha" class="screen">
-  <div class="card" style="text-align:center">
-    <h3>Perfil de Leitura</h3>
-    <div id="r-badge" style="margin:8px 0"></div>
-    <div id="r-titulo" style="font-weight:700;color:var(--navy);margin-bottom:5px"></div>
-    <div id="r-desc" style="font-size:.8rem;color:var(--gray)"></div>
-  </div>
-  <div class="card">
-    <h3>Pontuação por processo</h3>
-    <table class="score-tbl">
-      <thead><tr><th>Processo</th><th>Acertos</th><th>Total</th><th>%</th></tr></thead>
-      <tbody id="r-scores"></tbody>
-    </table>
-    <div id="r-total" style="margin-top:8px;text-align:right;font-weight:700;color:var(--navy);font-size:.88rem"></div>
-  </div>
-  <div class="card">
-    <h3>Diagnóstico por questão</h3>
-    <div id="r-diag"></div>
-  </div>
-  <button class="btn" onclick="exportarPDF()">Exportar ficha PDF</button>
-  <button class="btn sec" onclick="novaLeitura()">Nova leitura</button>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" async></script>
-<script>
-// ── LEIA! Data ────────────────────────────────────────────────────────────────
-const GAB  = [,'B','C','D','C','B','C','B','C','C','C','B','C','B','C','C','C','C','B','C','C'];
-const PROC = [,'P0','P0','P0','P0','P1','P1','P2','P2','P3','P3','P1','P1','P2','P2','P2','P2','P2','P3','P3','P4'];
-const PMAX = {P0:4,P1:4,P2:7,P3:4,P4:1};
-const DIAG = [,
-  {A:'Confusão de elemento — toma a gerente (personagem secundária) como assunto principal.',C:'Extrapolação — projeta contexto externo; o texto não menciona dificuldades do comércio.',D:'Leitura parcial — prende-se ao detalhe final (ligação para a mãe) e perde o evento central.'},
-  {A:'Inversão semântica — "distraída" é antônimo; não reconhece o campo semântico de "esforçada".',B:'Senso comum — associa "quieta" ao comportamento esperado em entrevista, sem base semântica.',D:'Palavra isolada — associa "experiente" a "esforçada" por proximidade no texto.'},
-  {A:'Inversão — aconteceu por último; não organiza a ordem cronológica.',B:'Inversão — penúltimo momento da narrativa, não o primeiro.',C:'Inversão — aconteceu no final; inverte a lógica da sequência.'},
-  {A:'Número inventado — não há base no texto; não localizou a informação.',B:'Número inventado — idem.',D:'⚠️ Ignora informação explícita — não localizou "18 anos" na primeira linha. Requer intervenção imediata em fluência de leitura.'},
-  {A:'Paráfrase enganosa — inverte o sentido; o cartaz diz exatamente o contrário.',C:'Extrapolação — acrescenta "estoquista", cargo não presente no texto.',D:'Paráfrase enganosa — usa palavras do contexto mas deforma o enunciado original.'},
-  {A:'Leitura parcial — identifica "mercado" mas não localiza o detalhe "sala nos fundos".',B:'Confusão de cena — a calçada é onde Carla faz a ligação após a entrevista.',D:'Extrapolação — escritório externo não é mencionado no texto.'},
-  {A:'Extrapolação por senso comum — ar-condicionado associado a tremor por experiência cotidiana.',C:'Extrapolação — ferida não é mencionada; ignora o contexto emocional.',D:'Extrapolação por estereótipo — cansaço como sintoma físico genérico, sem base no texto.'},
-  {A:'Leitura literal — interpreta "sem pensar" como falta de atenção, não como expressão idiomática.',B:'Inversão — o texto mostra exatamente o contrário; não integra as informações.',D:'Extrapolação — não há questionamento sobre o conhecimento de Carla acerca da função.'},
-  {A:'Extrapolação — o texto não avalia o nível ou salário do emprego.',B:'Extrapolação — não há indicação de raiva nem de demora no texto.',D:'Confusão de sujeito — quem chora é a mãe de Carla, não a gerente; perde a referência pronominal.'},
-  {A:'Extrapolação moralizante — fabrica uma moral não presente no texto.',B:'Extrapolação — o texto não compara empregadores nem recomenda o comércio.',D:'Inversão — o próprio texto mostra nervosismo de Carla; contradiz o texto.'},
-  {A:'Confusão numérica — número não presente no texto; erro de leitura rápida.',C:'Arredondamento indevido — aproxima 96 para 100; leitura imprecisa de dado numérico.',D:'Ignora informação explícita — dado claramente presente no texto, não localizado.'},
-  {A:'Senso comum — vídeos associados a celular por experiência cotidiana, não pelo texto.',B:'Leitura parcial — confunde tempo de uso (correlação) com causa (gatilho de dopamina).',D:'Extrapolação — baixar aplicativos não é mencionado como gatilho no texto.'},
-  {A:'Extrapolação — preço do celular não é mencionado; usa conhecimento externo.',C:'Extrapolação — o texto não diz que as redes sociais impõem acesso diário obrigatório.',D:'Leitura parcial — dormir menos é efeito possível, mas não é a justificativa da comparação com vício.'},
-  {A:'Palavra isolada — "automático" lido como atributo técnico do aparelho, não do comportamento.',B:'Palavra isolada — "automático" associado a notificações; confunde causa e consequência.',D:'Extrapolação — o texto não afirma que o cérebro para de funcionar.'},
-  {A:'Leitura parcial — notificações são mencionadas, mas não são a causa da ansiedade neste trecho.',B:'Extrapolação — qualidade do aparelho não é mencionada no texto.',D:'Extrapolação — falta de sinal não aparece no texto.'},
-  {A:'Extrapolação técnica — busca explicação técnica para comportamento descrito como psicológico.',B:'Inversão — desativar notificações seria o contrário da situação descrita.',D:'Extrapolação — problema de sinal não tem relação com o trecho analisado.'},
-  {A:'Extrapolação — o texto não restringe o problema a países ricos.',B:'Extrapolação — o texto não compara jovens de diferentes nacionalidades.',D:'Extrapolação — ausência de pesquisas brasileiras não é mencionada.'},
-  {A:'Extrapolação radicalizante — o texto não propõe proibição; amplifica além do que o autor afirma.',C:'Leitura parcial — distorce a função da informação sobre dopamina.',D:'Extrapolação de intenção — o texto não atribui intenção maliciosa absoluta aos criadores dos apps.'},
-  {A:'Extrapolação avaliativa — confunde dados preocupantes com alarmismo; não distingue tom analítico de catastrófico.',B:'Extrapolação — não há registro humorístico no texto.',D:'Extrapolação — o texto não menciona o passado pré-celular nem faz comparação temporal.'},
-  {A:'Inversão de perspectiva — atribui intenção benevolente a "explorar"; não percebe a carga negativa no contexto.',B:'Troca de sujeito — desloca o sujeito da ação (aplicativos) para o usuário.',D:'Palavra isolada descontextualizada — associa "explorar" à ideia de território desconhecido.'}
-];
-const PERFIS = {
-  A:{titulo:'Perfil A — Falha em identificação elementar',desc:'Não identifica o tema, não reconhece palavras no contexto ou não organiza a sequência de eventos. Dificuldade no nível da frase, anterior à compreensão de parágrafo.',prio:'Prioridade máxima. Vocabulário funcional, fluência oral e leitura em voz alta de textos curtos.'},
-  B:{titulo:'Perfil B — Lê frases, não integra o parágrafo',desc:'Localiza elementos básicos mas não recupera informações explícitas com precisão. Lê segmentos isolados; perde detalhes ao percorrer o texto inteiro.',prio:'Prioridade alta. Localização de informação, sublinhado guiado, perguntas de ancoragem ("Onde está escrito isso?").'},
-  C:{titulo:'Perfil C — Compreende dados, não constrói sentido global',desc:'Recupera informações explícitas, mas não conecta duas informações para fazer uma inferência simples. Lê o texto como lista de fatos, sem relações de causa, consequência ou intenção.',prio:'Prioridade média-alta. Inferência com pares de frases, identificação de causa e efeito, perguntas "Por quê?" ancoradas no texto.'},
-  D:{titulo:'Perfil D — Compreensão funcional, em desenvolvimento',desc:'Localiza informações explícitas e faz inferências diretas — Benchmark Intermediário PIRLS (475). P3 distingue dois patamares dentro do perfil.',prio:'Diferenciada: P3 ≥ 2 → textos mais longos, síntese, ponto de vista do autor. P3 ≤ 1 → sumarização e ideia principal antes de avançar para P4.'}
-};
-
-// ── Posições das bolhas em mm (origem canto sup-esq da folha A4 210×297mm) ────
-// Col1 q1-10  : x = 45.6 + j*12.4  (j=0..3 → A..D)
-// Col2 q11-20 : x = 140.6 + j*12.4
-// Linhas      : y = 78.2 + row*10.4
-const BUBBLES_MM = [];
-for(let q=1;q<=20;q++){
-  const col=q<=10?0:1, row=q<=10?q-1:q-11;
-  const bx=col===0?45.6:140.6, y=78.2+row*10.4;
-  BUBBLES_MM.push([0,1,2,3].map(j=>[bx+j*12.4,y]));
-}
-
-// ── Estado ────────────────────────────────────────────────────────────────────
-let foto      = null;     // HTMLImageElement
-let respostas = new Array(21).fill(null);
-let aluno     = {};
-
-// ── Utils ─────────────────────────────────────────────────────────────────────
-function tela(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
-function pad(n){return String(n).padStart(2,'0');}
-function fmtData(s){if(!s)return'';const[y,m,d]=s.split('-');return d+'/'+m+'/'+y;}
-function tick(){return new Promise(r=>setTimeout(r,20));}
-function setMsg(t){document.getElementById('proc-msg').textContent=t;}
-function cvOk(){return typeof cv!=='undefined'&&typeof cv.Mat!=='undefined'&&typeof cv.imread==='function';}
-async function waitCV(ms=20000){
-  const t=Date.now();
-  while(!cvOk()){if(Date.now()-t>ms)throw new Error('OpenCV não carregou. Verifique a conexão.');await new Promise(r=>setTimeout(r,150));}
-}
-
-// ── Seleção de foto ───────────────────────────────────────────────────────────
-document.getElementById('inp-file').addEventListener('change',function(e){
-  const f=e.target.files[0]; if(!f) return;
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    const img=new Image();
-    img.onload=()=>{
-      foto=img;
-      document.getElementById('prev-img').src=ev.target.result;
-      document.getElementById('prev-wrap').style.display='block';
-    };
-    img.src=ev.target.result;
-  };
-  rd.readAsDataURL(f);
-});
-
-// ── Reconhecer ────────────────────────────────────────────────────────────────
-async function reconhecer(){
-  tela('s-proc'); await tick();
-  try{
-    setMsg('Aguardando OpenCV…'); await tick();
-    await waitCV();
-
-    // ── 1. Detectar marcadores de canto
-    setMsg('Localizando marcadores…'); await tick();
-    const {corners, found} = detectarCantos();
-
-    // ── 2. Perspectiva → 1050×1485px (5px/mm, A4)
-    setMsg('Corrigindo perspectiva…'); await tick();
-    const DST_W=1050, DST_H=1485;
-    const W=foto.width, H=foto.height;
-    const sc=document.createElement('canvas');
-    sc.width=W; sc.height=H;
-    sc.getContext('2d').drawImage(foto,0,0);
-    const sPts=cv.matFromArray(4,1,cv.CV_32FC2,corners.flatMap(c=>[c.x*W,c.y*H]));
-    const dPts=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,DST_W,0,DST_W,DST_H,0,DST_H]);
-    const M=cv.getPerspectiveTransform(sPts,dPts);
-    const src=cv.imread(sc), warped=new cv.Mat();
-    cv.warpPerspective(src,warped,M,new cv.Size(DST_W,DST_H));
-
-    // ── 3. Limiar Otsu sobre imagem corrigida
-    setMsg('Detectando respostas…'); await tick();
-    const gray=new cv.Mat(), thr=new cv.Mat();
-    cv.cvtColor(warped,gray,cv.COLOR_RGBA2GRAY);
-    cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
-
-    // ── 4. Amostrar bolhas
-    // Bolhas têm letras impressas (≈ 20-25% de fill mesmo em branco).
-    // Critério duplo: fill absoluto ≥ 0.42 E dominância ≥ 1.8× sobre a 2ª maior.
-    const PX=DST_W/210;             // 5 px/mm
-    const R=Math.round(4.6*PX*.72); // raio de amostra ≈ 72% do raio da bolha
-    const det=new Array(21).fill(null);
-    for(let q=1;q<=20;q++){
-      const ratios=BUBBLES_MM[q-1].map(bub=>{
-        const cx=Math.round(bub[0]*PX), cy=Math.round(bub[1]*PX);
-        let fill=0,tot=0;
-        for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
-          if(dx*dx+dy*dy>R*R) continue;
-          const px=cx+dx, py=cy+dy;
-          if(px<0||px>=DST_W||py<0||py>=DST_H) continue;
-          tot++;
-          if(thr.data[py*thr.cols+px]>128) fill++;
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>LEIA! — Leitura de Folha</title>
+    <style>
+      :root {
+        --navy: #1e3a6e;
+        --blue: #2563a8;
+        --lblue: #c8d8ee;
+        --fblue: #f0f5fb;
+        --gray: #555;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--fblue);
+        min-height: 100svh;
+      }
+      .app-header {
+        background: var(--navy);
+        color: #fff;
+        padding: 12px 16px 10px;
+      }
+      .app-header h1 {
+        font-size: 1rem;
+        font-weight: 700;
+      }
+      .app-header p {
+        font-size: 0.68rem;
+        color: var(--lblue);
+        margin-top: 2px;
+      }
+      .screen {
+        display: none;
+        padding: 16px 14px;
+      }
+      .screen.active {
+        display: block;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid var(--lblue);
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      .card h3 {
+        color: var(--navy);
+        font-size: 0.88rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .card p {
+        font-size: 0.78rem;
+        color: var(--gray);
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 13px;
+        margin-top: 10px;
+        background: var(--navy);
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        text-align: center;
+      }
+      .btn:active {
+        opacity: 0.8;
+      }
+      .btn.sec {
+        background: #fff;
+        color: var(--navy);
+        border: 1.5px solid var(--lblue);
+      }
+      .photo-thumb {
+        width: 100%;
+        max-height: 220px;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #111;
+        display: block;
+        margin-bottom: 4px;
+      }
+      .det-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .det-ok {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .det-warn {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh;
+        gap: 16px;
+      }
+      .spinner {
+        width: 52px;
+        height: 52px;
+        border: 5px solid var(--lblue);
+        border-top-color: var(--navy);
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
-        return tot>0?fill/tot:0;
+      }
+      .loading p {
+        color: var(--navy);
+        font-weight: 700;
+        font-size: 1rem;
+      }
+      .loading small {
+        color: var(--gray);
+        font-size: 0.8rem;
+        text-align: center;
+      }
+      .q-row {
+        display: flex;
+        align-items: center;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--fblue);
+      }
+      .q-lbl {
+        width: 44px;
+        font-weight: 700;
+        color: var(--navy);
+        font-size: 0.85rem;
+      }
+      .q-proc {
+        width: 30px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--blue);
+        background: var(--fblue);
+        border-radius: 4px;
+        text-align: center;
+        padding: 2px 3px;
+        margin-right: 8px;
+        flex-shrink: 0;
+      }
+      .q-opts {
+        display: flex;
+        gap: 5px;
+        flex: 1;
+      }
+      .q-opt {
+        flex: 1;
+        padding: 7px 0;
+        text-align: center;
+        border: 1.5px solid var(--lblue);
+        border-radius: 20px;
+        font-weight: 700;
+        color: var(--gray);
+        cursor: pointer;
+        font-size: 0.8rem;
+        user-select: none;
+      }
+      .q-opt.sel {
+        background: var(--navy);
+        color: #fff;
+        border-color: var(--navy);
+      }
+      .q-row.sem-resp {
+        background: #fff7ed;
+        border-left: 3px solid #f97316;
+        padding-left: 5px;
+      }
+      .q-row.sem-resp .q-lbl {
+        color: #c2410c;
+      }
+      .id-field {
+        margin-bottom: 10px;
+      }
+      .id-field label {
+        display: block;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--navy);
+        margin-bottom: 3px;
+      }
+      .id-field input {
+        width: 100%;
+        padding: 10px;
+        border: 1.5px solid var(--lblue);
+        border-radius: 6px;
+        font-size: 0.92rem;
+      }
+      .perfil-badge {
+        display: inline-block;
+        padding: 6px 24px;
+        border-radius: 20px;
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+      .pA {
+        background: #dc2626;
+      }
+      .pB {
+        background: #ea580c;
+      }
+      .pC {
+        background: #ca8a04;
+      }
+      .pD {
+        background: #16a34a;
+      }
+      .score-tbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+      .score-tbl th {
+        background: var(--navy);
+        color: #fff;
+        padding: 5px 8px;
+        text-align: center;
+      }
+      .score-tbl td {
+        padding: 5px 8px;
+        text-align: center;
+        border-bottom: 1px solid var(--fblue);
+      }
+      .diag-item {
+        margin-bottom: 8px;
+        padding: 9px;
+        background: var(--fblue);
+        border-radius: 6px;
+        border-left: 3px solid var(--blue);
+      }
+      .diag-hdr {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 3px;
+      }
+      .diag-hdr b {
+        color: var(--navy);
+        font-size: 0.83rem;
+      }
+      .diag-hdr .err {
+        color: #dc2626;
+        font-size: 0.8rem;
+      }
+      .diag-hdr .gab {
+        color: #16a34a;
+        font-size: 0.8rem;
+      }
+      .diag-txt {
+        color: var(--gray);
+        font-size: 0.77rem;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-header">
+      <h1>LEIA! — Leitura de Folha</h1>
+      <p>
+        Levantamento Integrado de Avaliação em Leitura · Escaneamento · v1-alpha
+      </p>
+    </div>
+
+    <!-- Captura -->
+    <div id="s-cap" class="screen active">
+      <div class="card">
+        <h3>Como fotografar</h3>
+        <p>
+          Coloque a folha sobre superfície plana. Fotografe de cima, com a folha
+          preenchendo o enquadramento e boa iluminação uniforme.
+        </p>
+      </div>
+      <input
+        type="file"
+        id="inp-file"
+        accept="image/*"
+        capture="environment"
+        style="display: none"
+      />
+      <button class="btn" onclick="document.getElementById('inp-file').click()">
+        📷 Fotografar / Escolher imagem
+      </button>
+      <div id="prev-wrap" style="display: none; margin-top: 14px">
+        <img id="prev-img" class="photo-thumb" alt="prévia" />
+        <button class="btn" onclick="reconhecer()">Reconhecer folha →</button>
+        <button
+          class="btn sec"
+          onclick="document.getElementById('inp-file').click()"
+        >
+          Trocar foto
+        </button>
+      </div>
+    </div>
+
+    <!-- Processando -->
+    <div id="s-proc" class="screen">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Reconhecendo…</p>
+        <small id="proc-msg">Aguarde</small>
+      </div>
+    </div>
+
+    <!-- Confirmar -->
+    <div id="s-conf" class="screen">
+      <div class="card">
+        <h3>Confirme as respostas detectadas</h3>
+        <div id="det-status"></div>
+        <p>
+          Toque em qualquer bolha para corrigir. Toque novamente na selecionada
+          para desmarcar.
+        </p>
+      </div>
+      <div id="q-grid"></div>
+      <button class="btn" onclick="tela('s-id')">
+        Confirmar e identificar aluno →
+      </button>
+    </div>
+
+    <!-- Identificação -->
+    <div id="s-id" class="screen">
+      <div class="card">
+        <h3>Identificação do(a) aluno(a)</h3>
+        <div class="id-field">
+          <label>Nome completo</label>
+          <input type="text" id="f-nome" placeholder="Nome do(a) aluno(a)" />
+        </div>
+        <div style="display: flex; gap: 10px">
+          <div class="id-field" style="flex: 1">
+            <label>Turma</label>
+            <input type="text" id="f-turma" placeholder="Ex: 1A" />
+          </div>
+          <div class="id-field" style="flex: 1">
+            <label>Nº</label>
+            <input type="number" id="f-num" placeholder="—" />
+          </div>
+        </div>
+        <div class="id-field">
+          <label>Data de aplicação</label>
+          <input type="date" id="f-data" />
+        </div>
+      </div>
+      <button class="btn" onclick="gerarFicha()">Ver resultado →</button>
+    </div>
+
+    <!-- Ficha -->
+    <div id="s-ficha" class="screen">
+      <div class="card" style="text-align: center">
+        <h3>Perfil de Leitura</h3>
+        <div id="r-badge" style="margin: 8px 0"></div>
+        <div
+          id="r-titulo"
+          style="font-weight: 700; color: var(--navy); margin-bottom: 5px"
+        ></div>
+        <div id="r-desc" style="font-size: 0.8rem; color: var(--gray)"></div>
+      </div>
+      <div class="card">
+        <h3>Pontuação por processo</h3>
+        <table class="score-tbl">
+          <thead>
+            <tr>
+              <th>Processo</th>
+              <th>Acertos</th>
+              <th>Total</th>
+              <th>%</th>
+            </tr>
+          </thead>
+          <tbody id="r-scores"></tbody>
+        </table>
+        <div
+          id="r-total"
+          style="
+            margin-top: 8px;
+            text-align: right;
+            font-weight: 700;
+            color: var(--navy);
+            font-size: 0.88rem;
+          "
+        ></div>
+      </div>
+      <div class="card">
+        <h3>Diagnóstico por questão</h3>
+        <div id="r-diag"></div>
+      </div>
+      <button class="btn" onclick="exportarPDF()">Exportar ficha PDF</button>
+      <button class="btn sec" onclick="novaLeitura()">Nova leitura</button>
+    </div>
+
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+      async
+    ></script>
+    <script>
+      // ── LEIA! Data ────────────────────────────────────────────────────────────────
+      const GAB = [
+        ,
+        "B",
+        "C",
+        "D",
+        "C",
+        "B",
+        "C",
+        "B",
+        "C",
+        "C",
+        "C",
+        "B",
+        "C",
+        "B",
+        "C",
+        "C",
+        "C",
+        "C",
+        "B",
+        "C",
+        "C",
+      ];
+      const PROC = [
+        ,
+        "P0",
+        "P0",
+        "P0",
+        "P0",
+        "P1",
+        "P1",
+        "P2",
+        "P2",
+        "P3",
+        "P3",
+        "P1",
+        "P1",
+        "P2",
+        "P2",
+        "P2",
+        "P2",
+        "P2",
+        "P3",
+        "P3",
+        "P4",
+      ];
+      const PMAX = { P0: 4, P1: 4, P2: 7, P3: 4, P4: 1 };
+      const DIAG = [
+        ,
+        {
+          A: "Confusão de elemento — toma a gerente (personagem secundária) como assunto principal.",
+          C: "Extrapolação — projeta contexto externo; o texto não menciona dificuldades do comércio.",
+          D: "Leitura parcial — prende-se ao detalhe final (ligação para a mãe) e perde o evento central.",
+        },
+        {
+          A: 'Inversão semântica — "distraída" é antônimo; não reconhece o campo semântico de "esforçada".',
+          B: 'Senso comum — associa "quieta" ao comportamento esperado em entrevista, sem base semântica.',
+          D: 'Palavra isolada — associa "experiente" a "esforçada" por proximidade no texto.',
+        },
+        {
+          A: "Inversão — aconteceu por último; não organiza a ordem cronológica.",
+          B: "Inversão — penúltimo momento da narrativa, não o primeiro.",
+          C: "Inversão — aconteceu no final; inverte a lógica da sequência.",
+        },
+        {
+          A: "Número inventado — não há base no texto; não localizou a informação.",
+          B: "Número inventado — idem.",
+          D: '⚠️ Ignora informação explícita — não localizou "18 anos" na primeira linha. Requer intervenção imediata em fluência de leitura.',
+        },
+        {
+          A: "Paráfrase enganosa — inverte o sentido; o cartaz diz exatamente o contrário.",
+          C: 'Extrapolação — acrescenta "estoquista", cargo não presente no texto.',
+          D: "Paráfrase enganosa — usa palavras do contexto mas deforma o enunciado original.",
+        },
+        {
+          A: 'Leitura parcial — identifica "mercado" mas não localiza o detalhe "sala nos fundos".',
+          B: "Confusão de cena — a calçada é onde Carla faz a ligação após a entrevista.",
+          D: "Extrapolação — escritório externo não é mencionado no texto.",
+        },
+        {
+          A: "Extrapolação por senso comum — ar-condicionado associado a tremor por experiência cotidiana.",
+          C: "Extrapolação — ferida não é mencionada; ignora o contexto emocional.",
+          D: "Extrapolação por estereótipo — cansaço como sintoma físico genérico, sem base no texto.",
+        },
+        {
+          A: 'Leitura literal — interpreta "sem pensar" como falta de atenção, não como expressão idiomática.',
+          B: "Inversão — o texto mostra exatamente o contrário; não integra as informações.",
+          D: "Extrapolação — não há questionamento sobre o conhecimento de Carla acerca da função.",
+        },
+        {
+          A: "Extrapolação — o texto não avalia o nível ou salário do emprego.",
+          B: "Extrapolação — não há indicação de raiva nem de demora no texto.",
+          D: "Confusão de sujeito — quem chora é a mãe de Carla, não a gerente; perde a referência pronominal.",
+        },
+        {
+          A: "Extrapolação moralizante — fabrica uma moral não presente no texto.",
+          B: "Extrapolação — o texto não compara empregadores nem recomenda o comércio.",
+          D: "Inversão — o próprio texto mostra nervosismo de Carla; contradiz o texto.",
+        },
+        {
+          A: "Confusão numérica — número não presente no texto; erro de leitura rápida.",
+          C: "Arredondamento indevido — aproxima 96 para 100; leitura imprecisa de dado numérico.",
+          D: "Ignora informação explícita — dado claramente presente no texto, não localizado.",
+        },
+        {
+          A: "Senso comum — vídeos associados a celular por experiência cotidiana, não pelo texto.",
+          B: "Leitura parcial — confunde tempo de uso (correlação) com causa (gatilho de dopamina).",
+          D: "Extrapolação — baixar aplicativos não é mencionado como gatilho no texto.",
+        },
+        {
+          A: "Extrapolação — preço do celular não é mencionado; usa conhecimento externo.",
+          C: "Extrapolação — o texto não diz que as redes sociais impõem acesso diário obrigatório.",
+          D: "Leitura parcial — dormir menos é efeito possível, mas não é a justificativa da comparação com vício.",
+        },
+        {
+          A: 'Palavra isolada — "automático" lido como atributo técnico do aparelho, não do comportamento.',
+          B: 'Palavra isolada — "automático" associado a notificações; confunde causa e consequência.',
+          D: "Extrapolação — o texto não afirma que o cérebro para de funcionar.",
+        },
+        {
+          A: "Leitura parcial — notificações são mencionadas, mas não são a causa da ansiedade neste trecho.",
+          B: "Extrapolação — qualidade do aparelho não é mencionada no texto.",
+          D: "Extrapolação — falta de sinal não aparece no texto.",
+        },
+        {
+          A: "Extrapolação técnica — busca explicação técnica para comportamento descrito como psicológico.",
+          B: "Inversão — desativar notificações seria o contrário da situação descrita.",
+          D: "Extrapolação — problema de sinal não tem relação com o trecho analisado.",
+        },
+        {
+          A: "Extrapolação — o texto não restringe o problema a países ricos.",
+          B: "Extrapolação — o texto não compara jovens de diferentes nacionalidades.",
+          D: "Extrapolação — ausência de pesquisas brasileiras não é mencionada.",
+        },
+        {
+          A: "Extrapolação radicalizante — o texto não propõe proibição; amplifica além do que o autor afirma.",
+          C: "Leitura parcial — distorce a função da informação sobre dopamina.",
+          D: "Extrapolação de intenção — o texto não atribui intenção maliciosa absoluta aos criadores dos apps.",
+        },
+        {
+          A: "Extrapolação avaliativa — confunde dados preocupantes com alarmismo; não distingue tom analítico de catastrófico.",
+          B: "Extrapolação — não há registro humorístico no texto.",
+          D: "Extrapolação — o texto não menciona o passado pré-celular nem faz comparação temporal.",
+        },
+        {
+          A: 'Inversão de perspectiva — atribui intenção benevolente a "explorar"; não percebe a carga negativa no contexto.',
+          B: "Troca de sujeito — desloca o sujeito da ação (aplicativos) para o usuário.",
+          D: 'Palavra isolada descontextualizada — associa "explorar" à ideia de território desconhecido.',
+        },
+      ];
+      const PERFIS = {
+        A: {
+          titulo: "Perfil A — Falha em identificação elementar",
+          desc: "Não identifica o tema, não reconhece palavras no contexto ou não organiza a sequência de eventos. Dificuldade no nível da frase, anterior à compreensão de parágrafo.",
+          prio: "Prioridade máxima. Vocabulário funcional, fluência oral e leitura em voz alta de textos curtos.",
+        },
+        B: {
+          titulo: "Perfil B — Lê frases, não integra o parágrafo",
+          desc: "Localiza elementos básicos mas não recupera informações explícitas com precisão. Lê segmentos isolados; perde detalhes ao percorrer o texto inteiro.",
+          prio: 'Prioridade alta. Localização de informação, sublinhado guiado, perguntas de ancoragem ("Onde está escrito isso?").',
+        },
+        C: {
+          titulo: "Perfil C — Compreende dados, não constrói sentido global",
+          desc: "Recupera informações explícitas, mas não conecta duas informações para fazer uma inferência simples. Lê o texto como lista de fatos, sem relações de causa, consequência ou intenção.",
+          prio: 'Prioridade média-alta. Inferência com pares de frases, identificação de causa e efeito, perguntas "Por quê?" ancoradas no texto.',
+        },
+        D: {
+          titulo: "Perfil D — Compreensão funcional, em desenvolvimento",
+          desc: "Localiza informações explícitas e faz inferências diretas — Benchmark Intermediário PIRLS (475). P3 distingue dois patamares dentro do perfil.",
+          prio: "Diferenciada: P3 ≥ 2 → textos mais longos, síntese, ponto de vista do autor. P3 ≤ 1 → sumarização e ideia principal antes de avançar para P4.",
+        },
+      };
+
+      // ── Posições das bolhas em mm (origem canto sup-esq da folha A4 210×297mm) ────
+      // Col1 q1-10  : x = 45.6 + j*12.4  (j=0..3 → A..D)
+      // Col2 q11-20 : x = 140.6 + j*12.4
+      // Linhas      : y = 78.2 + row*10.4
+      const BUBBLES_MM = [];
+      for (let q = 1; q <= 20; q++) {
+        const col = q <= 10 ? 0 : 1,
+          row = q <= 10 ? q - 1 : q - 11;
+        const bx = col === 0 ? 45.6 : 140.6,
+          y = 78.2 + row * 10.4;
+        BUBBLES_MM.push([0, 1, 2, 3].map((j) => [bx + j * 12.4, y]));
+      }
+
+      // ── Estado ────────────────────────────────────────────────────────────────────
+      let foto = null; // HTMLImageElement
+      let respostas = new Array(21).fill(null);
+      let aluno = {};
+
+      // ── Utils ─────────────────────────────────────────────────────────────────────
+      function tela(id) {
+        document
+          .querySelectorAll(".screen")
+          .forEach((s) => s.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+      }
+      function pad(n) {
+        return String(n).padStart(2, "0");
+      }
+      function fmtData(s) {
+        if (!s) return "";
+        const [y, m, d] = s.split("-");
+        return d + "/" + m + "/" + y;
+      }
+      function tick() {
+        return new Promise((r) => setTimeout(r, 20));
+      }
+      function setMsg(t) {
+        document.getElementById("proc-msg").textContent = t;
+      }
+      function cvOk() {
+        return (
+          typeof cv !== "undefined" &&
+          typeof cv.Mat !== "undefined" &&
+          typeof cv.imread === "function"
+        );
+      }
+      async function waitCV(ms = 20000) {
+        const t = Date.now();
+        while (!cvOk()) {
+          if (Date.now() - t > ms)
+            throw new Error("OpenCV não carregou. Verifique a conexão.");
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      }
+
+      // ── Seleção de foto ───────────────────────────────────────────────────────────
+      document
+        .getElementById("inp-file")
+        .addEventListener("change", function (e) {
+          const f = e.target.files[0];
+          if (!f) return;
+          const rd = new FileReader();
+          rd.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+              foto = img;
+              document.getElementById("prev-img").src = ev.target.result;
+              document.getElementById("prev-wrap").style.display = "block";
+            };
+            img.src = ev.target.result;
+          };
+          rd.readAsDataURL(f);
+        });
+
+      // ── Reconhecer ────────────────────────────────────────────────────────────────
+      async function reconhecer() {
+        tela("s-proc");
+        await tick();
+        try {
+          setMsg("Aguardando OpenCV…");
+          await tick();
+          await waitCV();
+
+          // ── 1. Detectar marcadores de canto
+          setMsg("Localizando marcadores…");
+          await tick();
+          const { corners, found } = detectarCantos();
+
+          // ── 2. Perspectiva → 1050×1485px (5px/mm, A4)
+          setMsg("Corrigindo perspectiva…");
+          await tick();
+          const DST_W = 1050,
+            DST_H = 1485;
+          const W = foto.width,
+            H = foto.height;
+          const sc = document.createElement("canvas");
+          sc.width = W;
+          sc.height = H;
+          sc.getContext("2d").drawImage(foto, 0, 0);
+          const sPts = cv.matFromArray(
+            4,
+            1,
+            cv.CV_32FC2,
+            corners.flatMap((c) => [c.x * W, c.y * H])
+          );
+          // Marcadores estão a 13,5 mm das bordas — mapear para essas posições reais,
+          // não para os cantos da imagem, senão a grade de bolhas fica esticada.
+          const INSET = 13.5 * (DST_W / 210); // 67.5 px
+          const dPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            INSET,
+            INSET,
+            DST_W - INSET,
+            INSET,
+            DST_W - INSET,
+            DST_H - INSET,
+            INSET,
+            DST_H - INSET,
+          ]);
+          const M = cv.getPerspectiveTransform(sPts, dPts);
+          const src = cv.imread(sc),
+            warped = new cv.Mat();
+          cv.warpPerspective(src, warped, M, new cv.Size(DST_W, DST_H));
+
+          // ── 3. Limiar Otsu sobre imagem corrigida
+          setMsg("Detectando respostas…");
+          await tick();
+          const gray = new cv.Mat(),
+            thr = new cv.Mat();
+          cv.cvtColor(warped, gray, cv.COLOR_RGBA2GRAY);
+          cv.threshold(
+            gray,
+            thr,
+            0,
+            255,
+            cv.THRESH_BINARY_INV + cv.THRESH_OTSU
+          );
+
+          // ── 4. Amostrar bolhas
+          // Bolhas têm letras impressas (≈ 20-25% de fill mesmo em branco).
+          // Critério duplo: fill absoluto ≥ 0.42 E dominância ≥ 1.8× sobre a 2ª maior.
+          const PX = DST_W / 210; // 5 px/mm
+          const R = Math.round(4.6 * PX * 0.72); // raio de amostra ≈ 72% do raio da bolha
+          const det = new Array(21).fill(null);
+          for (let q = 1; q <= 20; q++) {
+            const ratios = BUBBLES_MM[q - 1].map((bub) => {
+              const cx = Math.round(bub[0] * PX),
+                cy = Math.round(bub[1] * PX);
+              let fill = 0,
+                tot = 0;
+              for (let dy = -R; dy <= R; dy++)
+                for (let dx = -R; dx <= R; dx++) {
+                  if (dx * dx + dy * dy > R * R) continue;
+                  const px = cx + dx,
+                    py = cy + dy;
+                  if (px < 0 || px >= DST_W || py < 0 || py >= DST_H) continue;
+                  tot++;
+                  if (thr.data[py * thr.cols + px] > 128) fill++;
+                }
+              return tot > 0 ? fill / tot : 0;
+            });
+            const maxR = Math.max(...ratios);
+            const maxI = ratios.indexOf(maxR);
+            const sec = Math.max(...ratios.filter((_, i) => i !== maxI));
+            // Só aceita se fill substancial E claramente dominante sobre as demais
+            if (maxR >= 0.42 && (sec < 0.01 || maxR / sec >= 1.8))
+              det[q] = "ABCD"[maxI];
+          }
+
+          sPts.delete();
+          dPts.delete();
+          M.delete();
+          src.delete();
+          warped.delete();
+          gray.delete();
+          thr.delete();
+
+          respostas = det;
+          construirGrid(found);
+          tela("s-conf");
+        } catch (e) {
+          console.error(e);
+          alert("Erro ao processar:\n" + e.message);
+          tela("s-cap");
+        }
+      }
+
+      // ── Detectar marcadores de canto ──────────────────────────────────────────────
+      // Retorna {corners:[TL,TR,BR,BL] normalizados 0-1, found: nº de marcadores encontrados}
+      function detectarCantos() {
+        const SW = 800,
+          SH = Math.round((800 * foto.height) / foto.width);
+        const tmp = document.createElement("canvas");
+        tmp.width = SW;
+        tmp.height = SH;
+        tmp.getContext("2d").drawImage(foto, 0, 0, SW, SH);
+
+        const src = cv.imread(tmp),
+          gray = new cv.Mat();
+        const thr = new cv.Mat(),
+          closed = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        // Otsu para adaptar a diferentes iluminações
+        cv.threshold(gray, thr, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+        // Fechamento morfológico para preencher buracos internos
+        const kern = cv.Mat.ones(5, 5, cv.CV_8U);
+        cv.morphologyEx(thr, closed, cv.MORPH_CLOSE, kern);
+        const ctrs = new cv.MatVector(),
+          hier = new cv.Mat();
+        cv.findContours(
+          closed,
+          ctrs,
+          hier,
+          cv.RETR_EXTERNAL,
+          cv.CHAIN_APPROX_SIMPLE
+        );
+
+        const expSz = (8 / 210) * SW; // tamanho esperado do marcador em pixels
+        const minA = (expSz * 0.2) ** 2,
+          maxA = (expSz * 4.0) ** 2;
+        const cands = [];
+        for (let k = 0; k < ctrs.size(); k++) {
+          const c = ctrs.get(k),
+            rect = cv.boundingRect(c);
+          c.delete();
+          const ar = rect.width / rect.height,
+            area = rect.width * rect.height;
+          if (ar < 0.3 || ar > 3.0 || area < minA || area > maxA) continue;
+          const cx = (rect.x + rect.width / 2) / SW,
+            cy = (rect.y + rect.height / 2) / SH;
+          // Apenas regiões de canto (25% periférico em cada eixo)
+          if ((cx < 0.28 || cx > 0.72) && (cy < 0.28 || cy > 0.72))
+            cands.push({ cx, cy, area });
+        }
+        src.delete();
+        gray.delete();
+        thr.delete();
+        closed.delete();
+        kern.delete();
+        ctrs.delete();
+        hier.delete();
+
+        const pick = (xf, yf) =>
+          cands
+            .filter((c) => xf(c.cx) && yf(c.cy))
+            .sort((a, b) => b.area - a.area)[0];
+        const tl = pick(
+            (x) => x < 0.5,
+            (y) => y < 0.5
+          ),
+          tr = pick(
+            (x) => x > 0.5,
+            (y) => y < 0.5
+          );
+        const br = pick(
+            (x) => x > 0.5,
+            (y) => y > 0.5
+          ),
+          bl = pick(
+            (x) => x < 0.5,
+            (y) => y > 0.5
+          );
+
+        const found = [tl, tr, br, bl].filter(Boolean).length;
+        // Validação de plausibilidade: os 4 pontos têm de formar um retângulo
+        // coerente (topo no topo, base na base, lados corretos). Evita falso positivo.
+        function quadPlausivel(tl, tr, br, bl) {
+          if (!(tl && tr && br && bl)) return false;
+          if (!(tl.cy < 0.2 && tr.cy < 0.2)) return false; // topo no topo
+          if (!(bl.cy > 0.8 && br.cy > 0.8)) return false; // base na base
+          if (!(tl.cx < 0.35 && bl.cx < 0.35)) return false; // esquerda à esquerda
+          if (!(tr.cx > 0.65 && br.cx > 0.65)) return false; // direita à direita
+          const h = (bl.cy + br.cy) / 2 - (tl.cy + tr.cy) / 2;
+          return h > 0.6; // altura coerente
+        }
+
+        if (found === 4 && quadPlausivel(tl, tr, br, bl)) {
+          return {
+            corners: [
+              { x: tl.cx, y: tl.cy },
+              { x: tr.cx, y: tr.cy },
+              { x: br.cx, y: br.cy },
+              { x: bl.cx, y: bl.cy },
+            ],
+            found: 4,
+          };
+        }
+        // Fallback: pontos insuficientes ou implausíveis
+        return {
+          corners: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+          ],
+          found: quadPlausivel(tl, tr, br, bl) ? found : 0,
+        };
+      }
+
+      // ── Grade de confirmação ──────────────────────────────────────────────────────
+      function construirGrid(found) {
+        const ds = document.getElementById("det-status");
+        if (found === 4) {
+          ds.innerHTML =
+            '<span class="det-badge det-ok">✓ 4 marcadores detectados — perspectiva corrigida</span>';
+        } else {
+          ds.innerHTML = `<span class="det-badge det-warn">⚠ ${found} marcador(es) encontrado(s) — enquadramento automático usado. Confira as respostas abaixo.</span>`;
+        }
+        const g = document.getElementById("q-grid");
+        g.innerHTML = "";
+        for (let q = 1; q <= 20; q++) {
+          const row = document.createElement("div");
+          row.className = "q-row" + (respostas[q] === null ? " sem-resp" : "");
+          row.id = "row-" + q;
+          row.innerHTML = `<div class="q-lbl">Q${pad(q)}</div><div class="q-proc">${PROC[q]}</div>
+      <div class="q-opts" id="opts-${q}">${"ABCD"
+        .split("")
+        .map(
+          (lt) =>
+            `<div class="q-opt${respostas[q] === lt ? " sel" : ""}" onclick="selResp(${q},'${lt}')">${lt}</div>`
+        )
+        .join("")}</div>`;
+          g.appendChild(row);
+        }
+      }
+      function selResp(q, lt) {
+        respostas[q] = respostas[q] === lt ? null : lt;
+        document
+          .getElementById("opts-" + q)
+          .querySelectorAll(".q-opt")
+          .forEach((b, j) => {
+            b.classList.toggle("sel", "ABCD"[j] === respostas[q]);
+          });
+        const row = document.getElementById("row-" + q);
+        row.classList.toggle("sem-resp", respostas[q] === null);
+      }
+
+      // ── Gerar ficha ───────────────────────────────────────────────────────────────
+      function gerarFicha() {
+        aluno = {
+          nome: document.getElementById("f-nome").value.trim() || "—",
+          turma: document.getElementById("f-turma").value.trim() || "",
+          num: document.getElementById("f-num").value.trim() || "",
+          data: document.getElementById("f-data").value || "",
+        };
+        const sc = { P0: 0, P1: 0, P2: 0, P3: 0, P4: 0 };
+        let total = 0;
+        for (let q = 1; q <= 20; q++)
+          if (respostas[q] === GAB[q]) {
+            sc[PROC[q]]++;
+            total++;
+          }
+        const { P0, P1, P2 } = sc;
+        const perfil = P0 <= 2 ? "A" : P1 <= 2 ? "B" : P2 <= 4 ? "C" : "D";
+        const pd = PERFIS[perfil];
+        document.getElementById("r-badge").innerHTML =
+          `<div class="perfil-badge p${perfil}">Perfil ${perfil}</div>`;
+        document.getElementById("r-titulo").textContent = pd.titulo;
+        document.getElementById("r-desc").innerHTML =
+          `<div style="margin-bottom:4px">${pd.desc}</div><div style="color:var(--blue);font-weight:700;font-size:.78rem;margin-top:6px">${pd.prio}</div>`;
+        const tb = document.getElementById("r-scores");
+        tb.innerHTML = "";
+        ["P0", "P1", "P2", "P3", "P4"].forEach((p) => {
+          const s = sc[p],
+            mx = PMAX[p];
+          tb.innerHTML += `<tr><td><b>${p}</b></td><td>${s}</td><td>${mx}</td><td>${Math.round((s / mx) * 100)}%</td></tr>`;
+        });
+        document.getElementById("r-total").textContent = `Total: ${total} / 20`;
+        const dd = document.getElementById("r-diag");
+        dd.innerHTML = "";
+        let algum = false;
+        for (let q = 1; q <= 20; q++) {
+          const r = respostas[q];
+          if (r === GAB[q]) continue;
+          algum = true;
+          const dt = r && DIAG[q] ? DIAG[q][r] || "" : "";
+          dd.innerHTML += `<div class="diag-item"><div class="diag-hdr"><b>Q${pad(q)} · ${PROC[q]}</b><span class="err">Resp: ${r || "—"}</span><span class="gab">Gab: ${GAB[q]}</span></div>${dt ? `<div class="diag-txt">${dt}</div>` : ""}</div>`;
+        }
+        if (!algum)
+          dd.innerHTML =
+            '<p style="color:#16a34a;font-weight:700">Gabarito perfeito!</p>';
+        window._leia = { aluno, sc, total, perfil };
+        tela("s-ficha");
+      }
+
+      // ── Exportar PDF ──────────────────────────────────────────────────────────────
+      function exportarPDF() {
+        if (!window.jspdf) {
+          alert("jsPDF ainda não carregou. Aguarde e tente novamente.");
+          return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: "mm", format: "a4" });
+        const { aluno: a, sc, total, perfil } = window._leia;
+        const cN = [30, 58, 110],
+          cBl = [37, 99, 168],
+          cLb = [200, 216, 238],
+          cFb = [240, 245, 251];
+        const cGr = [85, 85, 85],
+          cWh = [255, 255, 255],
+          cOk = [22, 163, 74],
+          cEr = [220, 38, 38];
+        const PC = {
+          A: { bg: [254, 242, 242], bd: [254, 202, 202], tx: [220, 38, 38] },
+          B: { bg: [255, 247, 237], bd: [254, 215, 170], tx: [234, 88, 12] },
+          C: { bg: [254, 252, 232], bd: [253, 230, 138], tx: [202, 138, 4] },
+          D: { bg: [240, 253, 244], bd: [187, 247, 208], tx: [22, 163, 74] },
+        };
+        const L = 18,
+          R = 192,
+          W = 174,
+          PH = 297;
+        let y = 0;
+        const sC = (a) => doc.setTextColor(a[0], a[1], a[2]);
+        const sF = (a) => doc.setFillColor(a[0], a[1], a[2]);
+        const sD = (a) => doc.setDrawColor(a[0], a[1], a[2]);
+        function txt(s, x, yy, o = {}) {
+          doc.setFont("helvetica", o.bold ? "bold" : "normal");
+          doc.setFontSize(o.sz || 9);
+          sC(o.c || cGr);
+          o.align ? doc.text(s, x, yy, { align: o.align }) : doc.text(s, x, yy);
+        }
+        function cabTbl() {
+          sF(cN);
+          doc.rect(L, y, W, 7, "F");
+          txt("Nº", L + 10, y + 4.8, {
+            bold: true,
+            sz: 8,
+            c: cWh,
+            align: "center",
+          });
+          txt("Proc.", L + 24, y + 4.8, {
+            bold: true,
+            sz: 8,
+            c: cWh,
+            align: "center",
+          });
+          txt("Resp.", L + 40, y + 4.8, {
+            bold: true,
+            sz: 8,
+            c: cWh,
+            align: "center",
+          });
+          txt("Gab.", L + 52, y + 4.8, {
+            bold: true,
+            sz: 8,
+            c: cWh,
+            align: "center",
+          });
+          txt("Diagnóstico do erro", L + 64, y + 4.8, {
+            bold: true,
+            sz: 8,
+            c: cWh,
+          });
+          y += 7;
+        }
+        sF(cN);
+        doc.rect(0, 0, 210, 24, "F");
+        txt("LEIA! — Ficha Diagnóstica Individual", L, 10, {
+          bold: true,
+          sz: 14,
+          c: cWh,
+        });
+        txt(
+          "Levantamento Integrado de Avaliação em Leitura · v1-alpha",
+          L,
+          17,
+          { sz: 8.5, c: cLb }
+        );
+        y = 30;
+        sF(cFb);
+        sD(cLb);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(L, y, W, 20, 2, 2, "FD");
+        txt(a.nome || "Aluno não identificado", L + 4, y + 8, {
+          bold: true,
+          sz: 13,
+          c: cN,
+        });
+        const meta = [
+          a.turma && "Turma " + a.turma,
+          a.num && "Nº " + a.num,
+          a.data && fmtData(a.data),
+        ]
+          .filter(Boolean)
+          .join("  ·  ");
+        txt(meta || "LEIA! v1-alpha", L + 4, y + 15, { sz: 8.5, c: cGr });
+        y += 26;
+        const procs = ["P0", "P1", "P2", "P3", "P4"],
+          bW = W / 5;
+        sF(cN);
+        doc.rect(L, y, W, 7, "F");
+        procs.forEach((p, i) =>
+          txt(p, L + i * bW + bW / 2, y + 5, {
+            bold: true,
+            sz: 8,
+            c: cWh,
+            align: "center",
+          })
+        );
+        y += 7;
+        sF(cFb);
+        sD(cLb);
+        doc.rect(L, y, W, 12, "FD");
+        procs.forEach((p, i) =>
+          txt(sc[p] + "/" + PMAX[p], L + i * bW + bW / 2, y + 8, {
+            bold: true,
+            sz: 12,
+            c: cN,
+            align: "center",
+          })
+        );
+        y += 12;
+        sF(cN);
+        doc.rect(L, y, W, 7, "F");
+        txt("TOTAL  " + total + " / 20", L + W / 2, y + 5, {
+          bold: true,
+          sz: 9,
+          c: cWh,
+          align: "center",
+        });
+        y += 12;
+        const pc = PC[perfil],
+          pd = PERFIS[perfil];
+        const prioL = doc.splitTextToSize(pd.prio, W - 28);
+        sF(pc.bg);
+        sD(pc.bd);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(L, y, W, 22 + prioL.length * 3.8, 2, 2, "FD");
+        txt(perfil, L + 8, y + 14, { bold: true, sz: 20, c: pc.tx });
+        txt(pd.titulo, L + 22, y + 8, { bold: true, sz: 9.5, c: cN });
+        const descL = doc.splitTextToSize(pd.desc, W - 28);
+        txt(descL.join("\n"), L + 22, y + 14, { sz: 8, c: cGr });
+        txt(prioL.join("\n"), L + 22, y + 14 + descL.length * 3.8, {
+          sz: 8,
+          c: pc.tx,
+          bold: true,
+        });
+        y += 28 + prioL.length * 3.8;
+        cabTbl();
+        for (let q = 1; q <= 20; q++) {
+          const r = respostas[q] || "—",
+            ok = r === GAB[q];
+          const diag = !ok && r !== "—" ? DIAG[q][r] || "" : "";
+          const dL = diag ? doc.splitTextToSize(diag, W - 68) : [];
+          const rH = Math.max(7, dL.length * 3.8 + 4);
+          if (y + rH > PH - 14) {
+            doc.addPage();
+            y = 16;
+            cabTbl();
+          }
+          if (q % 2 === 0) {
+            sF([245, 248, 252]);
+            doc.rect(L, y, W, rH, "F");
+          }
+          sD(cLb);
+          doc.setLineWidth(0.3);
+          doc.rect(L, y, W, rH);
+          const mid = y + rH / 2 + 1.5;
+          txt(ok ? "✓" : "✗", L + 4, mid, {
+            bold: true,
+            sz: 9,
+            c: ok ? cOk : cEr,
+          });
+          txt("Q" + pad(q), L + 10, mid, {
+            bold: true,
+            sz: 8,
+            c: cN,
+            align: "center",
+          });
+          txt(PROC[q], L + 24, mid, { sz: 8, c: cBl, align: "center" });
+          txt(r, L + 40, mid, {
+            bold: !ok,
+            sz: 8,
+            c: ok ? cGr : cEr,
+            align: "center",
+          });
+          txt(GAB[q], L + 52, mid, { sz: 8, c: cGr, align: "center" });
+          if (dL.length)
+            txt(dL.join("\n"), L + 64, y + 4.5, { sz: 7.5, c: [60, 40, 10] });
+          y += rH;
+        }
+        const np = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= np; i++) {
+          doc.setPage(i);
+          sD([200, 200, 200]);
+          doc.setLineWidth(0.35);
+          doc.line(L, PH - 11, R, PH - 11);
+          txt(
+            "LEIA! · Levantamento Integrado de Avaliação em Leitura",
+            L,
+            PH - 7,
+            { sz: 7.5, c: cGr }
+          );
+          txt("página " + i + " de " + np, R, PH - 7, {
+            sz: 7.5,
+            c: cGr,
+            align: "right",
+          });
+        }
+        doc.save(
+          "leia-ficha-" +
+            (a.nome || "aluno").replace(/\s+/g, "-").toLowerCase() +
+            ".pdf"
+        );
+      }
+
+      function novaLeitura() {
+        respostas = new Array(21).fill(null);
+        foto = null;
+        document.getElementById("prev-wrap").style.display = "none";
+        document.getElementById("inp-file").value = "";
+        tela("s-cap");
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("f-data").value = new Date()
+          .toISOString()
+          .split("T")[0];
       });
-      const maxR=Math.max(...ratios);
-      const maxI=ratios.indexOf(maxR);
-      const sec=Math.max(...ratios.filter((_,i)=>i!==maxI));
-      // Só aceita se fill substancial E claramente dominante sobre as demais
-      if(maxR>=0.42 && (sec<0.01||maxR/sec>=1.8)) det[q]='ABCD'[maxI];
-    }
+    </script>
 
-    sPts.delete();dPts.delete();M.delete();src.delete();warped.delete();gray.delete();thr.delete();
-
-    respostas=det;
-    construirGrid(found);
-    tela('s-conf');
-  }catch(e){
-    console.error(e);
-    alert('Erro ao processar:\n'+e.message);
-    tela('s-cap');
-  }
-}
-
-// ── Detectar marcadores de canto ──────────────────────────────────────────────
-// Retorna {corners:[TL,TR,BR,BL] normalizados 0-1, found: nº de marcadores encontrados}
-function detectarCantos(){
-  const SW=800, SH=Math.round(800*foto.height/foto.width);
-  const tmp=document.createElement('canvas');
-  tmp.width=SW; tmp.height=SH;
-  tmp.getContext('2d').drawImage(foto,0,0,SW,SH);
-
-  const src=cv.imread(tmp), gray=new cv.Mat();
-  const thr=new cv.Mat(), closed=new cv.Mat();
-  cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
-  // Otsu para adaptar a diferentes iluminações
-  cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
-  // Fechamento morfológico para preencher buracos internos
-  const kern=cv.Mat.ones(5,5,cv.CV_8U);
-  cv.morphologyEx(thr,closed,cv.MORPH_CLOSE,kern);
-  const ctrs=new cv.MatVector(), hier=new cv.Mat();
-  cv.findContours(closed,ctrs,hier,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
-
-  const expSz=(8/210)*SW;   // tamanho esperado do marcador em pixels
-  const minA=(expSz*.2)**2, maxA=(expSz*4.0)**2;
-  const cands=[];
-  for(let k=0;k<ctrs.size();k++){
-    const c=ctrs.get(k), rect=cv.boundingRect(c);
-    c.delete();
-    const ar=rect.width/rect.height, area=rect.width*rect.height;
-    if(ar<.3||ar>3.0||area<minA||area>maxA) continue;
-    const cx=(rect.x+rect.width/2)/SW, cy=(rect.y+rect.height/2)/SH;
-    // Apenas regiões de canto (25% periférico em cada eixo)
-    if((cx<.28||cx>.72)&&(cy<.28||cy>.72)) cands.push({cx,cy,area});
-  }
-  src.delete();gray.delete();thr.delete();closed.delete();kern.delete();ctrs.delete();hier.delete();
-
-  const pick=(xf,yf)=>cands.filter(c=>xf(c.cx)&&yf(c.cy)).sort((a,b)=>b.area-a.area)[0];
-  const tl=pick(x=>x<.5,y=>y<.5), tr=pick(x=>x>.5,y=>y<.5);
-  const br=pick(x=>x>.5,y=>y>.5), bl=pick(x=>x<.5,y=>y>.5);
-  const found=[tl,tr,br,bl].filter(Boolean).length;
-
-  if(found===4){
-    return {
-      corners:[{x:tl.cx,y:tl.cy},{x:tr.cx,y:tr.cy},{x:br.cx,y:br.cy},{x:bl.cx,y:bl.cy}],
-      found:4
-    };
-  }
-  // Fallback: assume que a foto enquadra a folha inteira
-  return {
-    corners:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],
-    found
-  };
-}
-
-// ── Grade de confirmação ──────────────────────────────────────────────────────
-function construirGrid(found){
-  const ds=document.getElementById('det-status');
-  if(found===4){
-    ds.innerHTML='<span class="det-badge det-ok">✓ 4 marcadores detectados — perspectiva corrigida</span>';
-  } else {
-    ds.innerHTML=`<span class="det-badge det-warn">⚠ ${found} marcador(es) encontrado(s) — enquadramento automático usado. Confira as respostas abaixo.</span>`;
-  }
-  const g=document.getElementById('q-grid');
-  g.innerHTML='';
-  for(let q=1;q<=20;q++){
-    const row=document.createElement('div');
-    row.className='q-row'+(respostas[q]===null?' sem-resp':'');
-    row.id='row-'+q;
-    row.innerHTML=`<div class="q-lbl">Q${pad(q)}</div><div class="q-proc">${PROC[q]}</div>
-      <div class="q-opts" id="opts-${q}">${'ABCD'.split('').map(lt=>
-        `<div class="q-opt${respostas[q]===lt?' sel':''}" onclick="selResp(${q},'${lt}')">${lt}</div>`
-      ).join('')}</div>`;
-    g.appendChild(row);
-  }
-}
-function selResp(q,lt){
-  respostas[q]=respostas[q]===lt?null:lt;
-  document.getElementById('opts-'+q).querySelectorAll('.q-opt').forEach((b,j)=>{
-    b.classList.toggle('sel','ABCD'[j]===respostas[q]);
-  });
-  const row=document.getElementById('row-'+q);
-  row.classList.toggle('sem-resp',respostas[q]===null);
-}
-
-// ── Gerar ficha ───────────────────────────────────────────────────────────────
-function gerarFicha(){
-  aluno={
-    nome: document.getElementById('f-nome').value.trim()||'—',
-    turma:document.getElementById('f-turma').value.trim()||'',
-    num:  document.getElementById('f-num').value.trim()||'',
-    data: document.getElementById('f-data').value||'',
-  };
-  const sc={P0:0,P1:0,P2:0,P3:0,P4:0};
-  let total=0;
-  for(let q=1;q<=20;q++) if(respostas[q]===GAB[q]){sc[PROC[q]]++;total++;}
-  const{P0,P1,P2}=sc;
-  const perfil=P0<=2?'A':P1<=2?'B':P2<=4?'C':'D';
-  const pd=PERFIS[perfil];
-  document.getElementById('r-badge').innerHTML=`<div class="perfil-badge p${perfil}">Perfil ${perfil}</div>`;
-  document.getElementById('r-titulo').textContent=pd.titulo;
-  document.getElementById('r-desc').innerHTML=`<div style="margin-bottom:4px">${pd.desc}</div><div style="color:var(--blue);font-weight:700;font-size:.78rem;margin-top:6px">${pd.prio}</div>`;
-  const tb=document.getElementById('r-scores');
-  tb.innerHTML='';
-  ['P0','P1','P2','P3','P4'].forEach(p=>{
-    const s=sc[p],mx=PMAX[p];
-    tb.innerHTML+=`<tr><td><b>${p}</b></td><td>${s}</td><td>${mx}</td><td>${Math.round(s/mx*100)}%</td></tr>`;
-  });
-  document.getElementById('r-total').textContent=`Total: ${total} / 20`;
-  const dd=document.getElementById('r-diag');
-  dd.innerHTML='';
-  let algum=false;
-  for(let q=1;q<=20;q++){
-    const r=respostas[q]; if(r===GAB[q]) continue;
-    algum=true;
-    const dt=r&&DIAG[q]?(DIAG[q][r]||''):'';
-    dd.innerHTML+=`<div class="diag-item"><div class="diag-hdr"><b>Q${pad(q)} · ${PROC[q]}</b><span class="err">Resp: ${r||'—'}</span><span class="gab">Gab: ${GAB[q]}</span></div>${dt?`<div class="diag-txt">${dt}</div>`:''}</div>`;
-  }
-  if(!algum) dd.innerHTML='<p style="color:#16a34a;font-weight:700">Gabarito perfeito!</p>';
-  window._leia={aluno,sc,total,perfil};
-  tela('s-ficha');
-}
-
-// ── Exportar PDF ──────────────────────────────────────────────────────────────
-function exportarPDF(){
-  if(!window.jspdf){alert('jsPDF ainda não carregou. Aguarde e tente novamente.');return;}
-  const{jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'mm',format:'a4'});
-  const{aluno:a,sc,total,perfil}=window._leia;
-  const cN=[30,58,110],cBl=[37,99,168],cLb=[200,216,238],cFb=[240,245,251];
-  const cGr=[85,85,85],cWh=[255,255,255],cOk=[22,163,74],cEr=[220,38,38];
-  const PC={A:{bg:[254,242,242],bd:[254,202,202],tx:[220,38,38]},B:{bg:[255,247,237],bd:[254,215,170],tx:[234,88,12]},C:{bg:[254,252,232],bd:[253,230,138],tx:[202,138,4]},D:{bg:[240,253,244],bd:[187,247,208],tx:[22,163,74]}};
-  const L=18,R=192,W=174,PH=297;
-  let y=0;
-  const sC=a=>doc.setTextColor(a[0],a[1],a[2]);
-  const sF=a=>doc.setFillColor(a[0],a[1],a[2]);
-  const sD=a=>doc.setDrawColor(a[0],a[1],a[2]);
-  function txt(s,x,yy,o={}){
-    doc.setFont('helvetica',o.bold?'bold':'normal');
-    doc.setFontSize(o.sz||9);sC(o.c||cGr);
-    o.align?doc.text(s,x,yy,{align:o.align}):doc.text(s,x,yy);
-  }
-  function cabTbl(){
-    sF(cN);doc.rect(L,y,W,7,'F');
-    txt('Nº',L+10,y+4.8,{bold:true,sz:8,c:cWh,align:'center'});
-    txt('Proc.',L+24,y+4.8,{bold:true,sz:8,c:cWh,align:'center'});
-    txt('Resp.',L+40,y+4.8,{bold:true,sz:8,c:cWh,align:'center'});
-    txt('Gab.',L+52,y+4.8,{bold:true,sz:8,c:cWh,align:'center'});
-    txt('Diagnóstico do erro',L+64,y+4.8,{bold:true,sz:8,c:cWh});
-    y+=7;
-  }
-  sF(cN);doc.rect(0,0,210,24,'F');
-  txt('LEIA! — Ficha Diagnóstica Individual',L,10,{bold:true,sz:14,c:cWh});
-  txt('Levantamento Integrado de Avaliação em Leitura · v1-alpha',L,17,{sz:8.5,c:cLb});
-  y=30;
-  sF(cFb);sD(cLb);doc.setLineWidth(.5);doc.roundedRect(L,y,W,20,2,2,'FD');
-  txt(a.nome||'Aluno não identificado',L+4,y+8,{bold:true,sz:13,c:cN});
-  const meta=[a.turma&&'Turma '+a.turma,a.num&&'Nº '+a.num,a.data&&fmtData(a.data)].filter(Boolean).join('  ·  ');
-  txt(meta||'LEIA! v1-alpha',L+4,y+15,{sz:8.5,c:cGr});
-  y+=26;
-  const procs=['P0','P1','P2','P3','P4'],bW=W/5;
-  sF(cN);doc.rect(L,y,W,7,'F');
-  procs.forEach((p,i)=>txt(p,L+i*bW+bW/2,y+5,{bold:true,sz:8,c:cWh,align:'center'}));
-  y+=7;sF(cFb);sD(cLb);doc.rect(L,y,W,12,'FD');
-  procs.forEach((p,i)=>txt(sc[p]+'/'+PMAX[p],L+i*bW+bW/2,y+8,{bold:true,sz:12,c:cN,align:'center'}));
-  y+=12;sF(cN);doc.rect(L,y,W,7,'F');
-  txt('TOTAL  '+total+' / 20',L+W/2,y+5,{bold:true,sz:9,c:cWh,align:'center'});
-  y+=12;
-  const pc=PC[perfil],pd=PERFIS[perfil];
-  const prioL=doc.splitTextToSize(pd.prio,W-28);
-  sF(pc.bg);sD(pc.bd);doc.setLineWidth(.5);
-  doc.roundedRect(L,y,W,22+prioL.length*3.8,2,2,'FD');
-  txt(perfil,L+8,y+14,{bold:true,sz:20,c:pc.tx});
-  txt(pd.titulo,L+22,y+8,{bold:true,sz:9.5,c:cN});
-  const descL=doc.splitTextToSize(pd.desc,W-28);
-  txt(descL.join('\n'),L+22,y+14,{sz:8,c:cGr});
-  txt(prioL.join('\n'),L+22,y+14+descL.length*3.8,{sz:8,c:pc.tx,bold:true});
-  y+=28+prioL.length*3.8;
-  cabTbl();
-  for(let q=1;q<=20;q++){
-    const r=respostas[q]||'—',ok=r===GAB[q];
-    const diag=!ok&&r!=='—'?(DIAG[q][r]||''):'';
-    const dL=diag?doc.splitTextToSize(diag,W-68):[];
-    const rH=Math.max(7,dL.length*3.8+4);
-    if(y+rH>PH-14){doc.addPage();y=16;cabTbl();}
-    if(q%2===0){sF([245,248,252]);doc.rect(L,y,W,rH,'F');}
-    sD(cLb);doc.setLineWidth(.3);doc.rect(L,y,W,rH);
-    const mid=y+rH/2+1.5;
-    txt(ok?'✓':'✗',L+4,mid,{bold:true,sz:9,c:ok?cOk:cEr});
-    txt('Q'+pad(q),L+10,mid,{bold:true,sz:8,c:cN,align:'center'});
-    txt(PROC[q],L+24,mid,{sz:8,c:cBl,align:'center'});
-    txt(r,L+40,mid,{bold:!ok,sz:8,c:ok?cGr:cEr,align:'center'});
-    txt(GAB[q],L+52,mid,{sz:8,c:cGr,align:'center'});
-    if(dL.length) txt(dL.join('\n'),L+64,y+4.5,{sz:7.5,c:[60,40,10]});
-    y+=rH;
-  }
-  const np=doc.internal.getNumberOfPages();
-  for(let i=1;i<=np;i++){
-    doc.setPage(i);sD([200,200,200]);doc.setLineWidth(.35);doc.line(L,PH-11,R,PH-11);
-    txt('LEIA! · Levantamento Integrado de Avaliação em Leitura',L,PH-7,{sz:7.5,c:cGr});
-    txt('página '+i+' de '+np,R,PH-7,{sz:7.5,c:cGr,align:'right'});
-  }
-  doc.save('leia-ficha-'+(a.nome||'aluno').replace(/\s+/g,'-').toLowerCase()+'.pdf');
-}
-
-function novaLeitura(){
-  respostas=new Array(21).fill(null);foto=null;
-  document.getElementById('prev-wrap').style.display='none';
-  document.getElementById('inp-file').value='';
-  tela('s-cap');
-}
-
-document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('f-data').value=new Date().toISOString().split('T')[0];
-});
-</script>
-
-<script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
-</body>
+    <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
+  </body>
 </html>
